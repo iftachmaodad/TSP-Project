@@ -7,19 +7,22 @@ public class DistanceMatrix {
 	//Properties
 	private static DistanceMatrix instance = null;
 	
+	private HashSet<City> cities;
 	private HashMap<City, HashMap<City, Double>> matrix;
 	
 	//Constructors
 	private DistanceMatrix() {
 		matrix = new HashMap<City , HashMap<City, Double>>();
+		cities = new HashSet<City>();
 	}
 	
 	private DistanceMatrix(HashSet<City> targets) {
 		matrix = new HashMap<City , HashMap<City, Double>>();
-		this.matrixBuilder(targets);
+		cities = new HashSet<City>(targets);
+		this.matrixBuilder(cities);
 	}
 	
-	//Singleton methods
+	//Singleton Methods
 	public static DistanceMatrix getInstance() {
 		if(instance == null) {
 			instance = new DistanceMatrix();
@@ -40,14 +43,18 @@ public class DistanceMatrix {
 	
 	//Methods
 	private void matrixBuilder(HashSet<City> targets) {
-		if(!matrix.isEmpty()) matrix.clear();
+		if(!matrix.isEmpty()) { 
+			matrix.clear();
+			cities.clear();
+		}
 		
-		for(City MainKey : targets) {
-			if(MainKey == null) continue;
-			matrix.put(MainKey, new HashMap<City , Double>());
-			for(City SecKey : targets) {
-				if(SecKey == null) continue;
-				matrix.get(MainKey).put(SecKey, MainKey.distance(SecKey));
+		for(City fromCity : targets) {
+			if(fromCity == null) continue;
+			cities.add(fromCity);
+			matrix.put(fromCity, new HashMap<City , Double>());
+			for(City toCity : targets) {
+				if(toCity == null) continue;
+				matrix.get(fromCity).put(toCity, fromCity.distance(toCity));
 			}
 		}
 	}
@@ -78,14 +85,15 @@ public class DistanceMatrix {
 		}
 		
 		if(!matrix.containsKey(other)) {
+			cities.add(other);
 			matrix.put(other, new HashMap<City, Double>());
 			for(City existing : matrix.keySet()) {
 				if(existing.equals(other)) continue;
 				matrix.get(existing).put(other, existing.distance(other));
 			}
 			
-			for(City target : matrix.keySet()) 
-				matrix.get(other).put(target, other.distance(target));
+			for(City existing : matrix.keySet()) 
+				matrix.get(other).put(existing, other.distance(existing));
 		}else
 			System.out.println("ERROR: can't add city (" + other + ") -> already exists in matrix");
 	}
@@ -97,33 +105,40 @@ public class DistanceMatrix {
 		}
 		
 		if(matrix.containsKey(other)) {
+			cities.remove(other);
 			matrix.remove(other);
-			for(City key : matrix.keySet()) {
-				matrix.get(key).remove(other);
+			for(City existing : matrix.keySet()) {
+				matrix.get(existing).remove(other);
 			}
 		}else
 			System.out.println("ERROR: can't remove city (" + other + ") -> city doesn't exist in matrix");
 	}
 	
-	//Override methods
+	
+	//Utility Methods
+	public int size() {return matrix.size();}
+	public boolean contains(City other) {return matrix.containsKey(other);}
+	public HashSet<City> getCities() {return new HashSet<City>(cities);}
+	
+	//Override Methods
 	@Override
 	public String toString() {
 		if(matrix.isEmpty()) return "";
-		String returnString = "[Matrix] ";
+		StringBuilder stringBuilder = new StringBuilder("[Matrix] ");
 		
 		for(City existing : matrix.keySet())
-			returnString += String.format("%8s", existing.getID());
-		returnString += "\n";
+			stringBuilder.append(String.format("%8s", existing.getID()));
+		stringBuilder.append("\n");
 		
 		for(City fromCity : matrix.keySet()) {
-			returnString += String.format("%8s", fromCity.getID() + ":");
+			stringBuilder.append(String.format("%8s", fromCity.getID() + ":"));
 			for(City toCity : matrix.keySet()) {
-				String floatlim = String.format("%8.2f",matrix.get(fromCity).get(toCity));
-				returnString += floatlim + " ";
+				String floatlim = String.format("%.2f",matrix.get(fromCity).get(toCity));
+				stringBuilder.append(floatlim + " ");
 			}
-			returnString += "\n";
+			stringBuilder.append("\n");
 		}
 			
-		return returnString;
+		return stringBuilder.toString();
 	}
 }

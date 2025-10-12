@@ -21,13 +21,14 @@ public class City {
 	}
 	
 	//Methods
+	//Need to change distance formula when moving to real coordinates
 	public double distance(City other) {
 		if(this.equals(other))
 			return 0;
 		return Math.sqrt(Math.pow(this.x-other.x, 2)+Math.pow(this.y - other.y, 2));
 	}
 
-	//Override methods
+	//Override Methods
 	@Override
 	public boolean equals(Object obj) {
 		if(this == obj)
