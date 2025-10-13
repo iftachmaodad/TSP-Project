@@ -131,7 +131,7 @@ public class DistanceMatrix {
 		stringBuilder.append("\n");
 		
 		for(City fromCity : matrix.keySet()) {
-			stringBuilder.append(String.format("%8s", fromCity.getID() + ":"));
+			stringBuilder.append(String.format("%8s", fromCity.getID())).append(":");
 			for(City toCity : matrix.keySet()) {
 				String floatlim = String.format("%.2f",matrix.get(fromCity).get(toCity));
 				stringBuilder.append(floatlim + " ");
