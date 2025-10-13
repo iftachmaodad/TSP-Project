@@ -120,20 +120,44 @@ public class DistanceMatrix {
 	public boolean contains(City other) {return matrix.containsKey(other);}
 	public HashSet<City> getCities() {return new HashSet<City>(cities);}
 	
-	//Override Methods
+	//Override Methods | toString Methods
 	@Override
 	public String toString() {
 		if(matrix.isEmpty()) return "";
-		StringBuilder stringBuilder = new StringBuilder("[Matrix] ");
+		
+		StringBuilder stringBuilder = new StringBuilder(cities.toString() + "\n[Matrix] ");
 		
 		for(City existing : matrix.keySet())
-			stringBuilder.append(String.format("%8s", existing.getID()));
+			stringBuilder.append(String.format("%10s", existing.getID()));
 		stringBuilder.append("\n");
 		
 		for(City fromCity : matrix.keySet()) {
-			stringBuilder.append(String.format("%8s", fromCity.getID())).append(":");
+			stringBuilder.append(String.format("%10s", fromCity.getID())).append(":");
 			for(City toCity : matrix.keySet()) {
-				String floatlim = String.format("%.2f",matrix.get(fromCity).get(toCity));
+				String floatlim = String.format("%10.2f",matrix.get(fromCity).get(toCity));
+				stringBuilder.append(floatlim + " ");
+			}
+			stringBuilder.append("\n");
+		}
+			
+		return stringBuilder.toString();
+	}
+	
+	public String toString(boolean topORbottom) {
+		if(matrix.isEmpty()) return "";
+		
+		if(topORbottom) return cities.toString();
+		
+		StringBuilder stringBuilder = new StringBuilder("[Matrix] ");
+		
+		for(City existing : matrix.keySet())
+			stringBuilder.append(String.format("%10s", existing.getID()));
+		stringBuilder.append("\n");
+		
+		for(City fromCity : matrix.keySet()) {
+			stringBuilder.append(String.format("%10s", fromCity.getID())).append(":");
+			for(City toCity : matrix.keySet()) {
+				String floatlim = String.format("%10.2f",matrix.get(fromCity).get(toCity));
 				stringBuilder.append(floatlim + " ");
 			}
 			stringBuilder.append("\n");

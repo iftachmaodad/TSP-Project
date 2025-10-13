@@ -20,7 +20,7 @@ public class Solver {
 		this.solverMatrix = DistanceMatrix.getInstance(cities);
 	}
 	
-	//Methods
+	//Methods | TSP algorithms
     public Route solveNearestNeighbor(City start) {
     	if(start == null) {
     		System.out.println("ERROR: null error -> start city is null");
@@ -59,5 +59,15 @@ public class Solver {
         route.addCity(start, returnDist);
 
         return route;
+    }
+    
+    //Override Methods | toString Methods
+    @Override
+    public String toString() {
+    	return solverMatrix.toString();
+    }
+    
+    public String toString(boolean partialPrint) {
+    	return solverMatrix.toString(partialPrint);
     }
 }

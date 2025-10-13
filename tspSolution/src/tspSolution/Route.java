@@ -28,9 +28,17 @@ public class Route {
 	//Override Methods
 	@Override
 	public String toString() {
-		StringBuilder stringBuilder = new StringBuilder("||ROUTE START||\n");
-		for(City onPath : path) stringBuilder.append(onPath + " -> ");
-		stringBuilder.append("\n||ROUTE END||\n Total Distance: ").append(String.format("%.2", totalDistance));
+		StringBuilder stringBuilder = new StringBuilder("Route: || ");
+		int size = 1;
+		for(City onPath : path) {
+			if(size == path.size()) {
+				stringBuilder.append(onPath.getID()).append(" ||");
+				continue;
+			}
+			size ++;
+			stringBuilder.append(onPath.getID()).append(" -> ");
+		}
+		stringBuilder.append("\nTotal Distance: ").append(String.format("%.2f", totalDistance));
 		return stringBuilder.toString();
 	}
 }

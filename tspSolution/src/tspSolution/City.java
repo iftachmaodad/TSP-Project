@@ -2,7 +2,7 @@ package tspSolution;
 
 public class City {
 	//Properties
-	private static int index = 0;
+	private static int index = 1;
 	
 	private String ID;
 	private double x, y;
@@ -50,7 +50,7 @@ public class City {
 	
 	@Override
 	public String toString() {
-		return ID + " - {" + x + ", " + y + "}"; 
+		return ID + " - {" + String.format("%.2f",x) + ", " + String.format("%.2f",y) + "}"; 
 	}
 	
 	//Getters
