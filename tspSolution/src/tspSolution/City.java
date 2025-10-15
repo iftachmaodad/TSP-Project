@@ -14,19 +14,41 @@ public class City {
 
 	public City(String ID ,double x, double y) {
 		//ID builder temporary for now
-		this.ID = ID + index;
+		if(x < -180 || x > 180 || y < -90 || y > 90) {
+			System.out.println("WARNING: city coordinates out of normal lat/lon range -> entering edge cases");
+			
+			x = ((x + 180) % 360 + 360) % 360 - 180;
+			y = Math.max(-90, Math.min(90, y));
+		}
+		if(ID.toLowerCase().equals("city")) ID = "City" + index;
+		this.ID = ID;
 		this.x = x;
 		this.y = y;
 		index++;
 	}
 	
 	//Methods
-	//Need to change distance formula when moving to real coordinates
 	public double distance(City other) {
-		if(this.equals(other))
-			return 0;
-		return Math.sqrt(Math.pow(this.x-other.x, 2)+Math.pow(this.y - other.y, 2));
-	}
+		if (other == null) {
+		    System.out.println("WARNING: tried to calculate distance to a null city");
+		    return Double.NaN;
+		}
+		if (this.equals(other))
+		    return 0;
+		
+		    final int R = 6371;
+		    double lonDistance = Math.toRadians(other.getX() - this.x);
+		    double latDistance = Math.toRadians(other.getY() - this.y);
+		    
+		    double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+		            + Math.cos(Math.toRadians(this.y)) * Math.cos(Math.toRadians(other.getY()))
+		            * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+		    
+		    double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+		    double distance = R * c;
+
+		    return distance;
+		}
 
 	//Override Methods
 	@Override

@@ -30,8 +30,12 @@ public class Solver {
     		System.out.println("ERROR: couldn't find starting city -> city not in list");
     		return null;
     	}
-    	if (solverMatrix.size() <= 1) {
-    	    System.out.println("WARNING: Solver initialized with less than two cities -> trivial route.");
+    	if(solverMatrix.getCities().isEmpty()) {
+    		System.out.println("ERROR: solver has no cities to process -> solver matrix is empty");
+    		return null;
+    	}
+    	if(solverMatrix.size() <= 1) {
+    	    System.out.println("WARNING: solver initialized with less than two cities -> trivial route.");
     	}
     	
         Route route = new Route(start);
@@ -39,14 +43,15 @@ public class Solver {
         unvisited.remove(start);
 
         City current = start;
-        while (!unvisited.isEmpty()) {
+        while(!unvisited.isEmpty()) {
             City nearest = null;
             double minDist = 0;
             boolean first = true;
-            for (City candidate : unvisited) {
+            for(City candidate : unvisited) {
                 double dist = solverMatrix.getDistance(current, candidate);
-                if (first || dist < minDist) {
-                    minDist = dist;
+                if(Double.isNaN(dist) || dist < 0) continue;
+                if(first || dist < minDist) {
+                	minDist = dist;
                     nearest = candidate;
                     first = false;
                 }
@@ -59,6 +64,11 @@ public class Solver {
         route.addCity(start, returnDist);
 
         return route;
+    }
+    
+    //Utility Methods
+    public boolean validateMatrix() {
+    	return solverMatrix.validateMatrix();
     }
     
     //Override Methods | toString Methods

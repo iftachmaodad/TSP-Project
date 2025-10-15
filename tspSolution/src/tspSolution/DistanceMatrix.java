@@ -17,9 +17,14 @@ public class DistanceMatrix {
 	}
 	
 	private DistanceMatrix(HashSet<City> targets) {
-		matrix = new HashMap<City , HashMap<City, Double>>();
-		cities = new HashSet<City>(targets);
-		this.matrixBuilder(cities);
+		if(targets != null) {
+			matrix = new HashMap<City , HashMap<City, Double>>();
+			cities = new HashSet<City>(targets);
+			this.matrixBuilder(cities);
+		}else {
+			matrix = new HashMap<City , HashMap<City, Double>>();
+			cities = new HashSet<City>();
+		}
 	}
 	
 	//Singleton Methods
@@ -32,7 +37,12 @@ public class DistanceMatrix {
 	
 	public static DistanceMatrix getInstance(HashSet<City> targets) {
 		if(instance == null) {
-			instance = new DistanceMatrix(new HashSet<City>(targets));
+			if(targets != null)
+				instance = new DistanceMatrix(new HashSet<City>(targets));
+			else {
+				System.out.println("ERROR: tried initilizing with null set -> initilizing empty matrix");
+				instance = new DistanceMatrix();
+			}
 		}
 		return instance;
 	}
@@ -43,6 +53,11 @@ public class DistanceMatrix {
 	
 	//Methods
 	private void matrixBuilder(HashSet<City> targets) {
+		if(targets == null) {
+			System.out.println("ERROR: can't build matrix off of null reference");
+			return;
+		}
+		
 		if(!matrix.isEmpty()) { 
 			matrix.clear();
 			cities.clear();
@@ -62,17 +77,17 @@ public class DistanceMatrix {
 	public double getDistance(City a, City b) {
 		if(a == null || b == null) {
 			System.out.println("ERROR: NullPointerException -> one or more of the cities you entered is null");
-			return -1;
+			return Double.NaN;
 		}
 		if(!matrix.containsKey(a) || !matrix.containsKey(b)) {
 			System.out.println("ERROR: can't calculate distance -> one or more of the cities you entered aren't in the matrix");
-			return -1;
+			return Double.NaN;
 		}
 		
 		Double distance = matrix.get(a).get(b);
 		if(distance == null) {
 			System.out.println("ERROR: distance between (" + a + ") and (" + b + ") not found");
-			return -1;
+			return Double.NaN;
 		}
 		return distance;
 	}
@@ -81,6 +96,13 @@ public class DistanceMatrix {
 	public void addCity(City other) {
 		if(other == null) {
 			System.out.println("ERROR: can't add city -> value is null");
+			return;
+		}
+		
+		if(matrix.isEmpty()) {
+			cities.add(other);
+			matrix.put(other, new HashMap<City, Double>());
+			matrix.get(other).put(other, 0.0);
 			return;
 		}
 		
@@ -120,15 +142,36 @@ public class DistanceMatrix {
 	public boolean contains(City other) {return matrix.containsKey(other);}
 	public HashSet<City> getCities() {return new HashSet<City>(cities);}
 	
+	public boolean validateMatrix() {
+		boolean flagged = true;
+		
+		for(City fromCity : cities) {
+			for(City toCity : cities) {
+				Double dist = matrix.get(fromCity).get(toCity);
+				if(dist == null|| dist.isNaN() || dist < 0) {
+					System.out.println("WARNING: integrity issue between " + fromCity + " and " + toCity);
+					flagged = false;
+				}
+				if(!matrix.get(fromCity).get(toCity).equals(matrix.get(toCity).get(fromCity))) {
+					System.out.println("WARNING: matrix asymmetry between " + fromCity + " and " + toCity);
+					flagged = false;
+				}
+			}
+		}
+		
+		return flagged;
+	}
+	
 	//Override Methods | toString Methods
 	@Override
 	public String toString() {
 		if(matrix.isEmpty()) return "";
 		
-		StringBuilder stringBuilder = new StringBuilder(cities.toString() + "\n[Matrix] ");
+		StringBuilder stringBuilder = new StringBuilder("Cities: " + cities.toString() + "\n\n");
+		stringBuilder.append(String.format("%10s", "[Matrix]"));
 		
 		for(City existing : matrix.keySet())
-			stringBuilder.append(String.format("%10s", existing.getID()));
+			stringBuilder.append(String.format("%11s", existing.getID()));
 		stringBuilder.append("\n");
 		
 		for(City fromCity : matrix.keySet()) {
@@ -146,12 +189,12 @@ public class DistanceMatrix {
 	public String toString(boolean topORbottom) {
 		if(matrix.isEmpty()) return "";
 		
-		if(topORbottom) return cities.toString();
+		if(topORbottom) return "Cities: " + cities.toString() + "\n";
 		
-		StringBuilder stringBuilder = new StringBuilder("[Matrix] ");
+		StringBuilder stringBuilder = new StringBuilder(String.format("%10s", "[Matrix]"));
 		
 		for(City existing : matrix.keySet())
-			stringBuilder.append(String.format("%10s", existing.getID()));
+			stringBuilder.append(String.format("%11s", existing.getID()));
 		stringBuilder.append("\n");
 		
 		for(City fromCity : matrix.keySet()) {

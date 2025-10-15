@@ -21,6 +21,13 @@ public class Route {
 	
 	//Setters
 	public void addCity(City other, double distance) {
+		if(other == null) {
+			System.out.println("ERROR: can't add null city to route");
+			return;
+		}
+		if(Double.isNaN(distance)) System.out.println("WARNING: distance is not a number -> check source");
+		if(path.contains(other) && !other.equals(path.getFirst())) System.out.println("WARNING: city " + other + " is already in route");
+		
 		path.add(other);
 		totalDistance += distance;
 	}
