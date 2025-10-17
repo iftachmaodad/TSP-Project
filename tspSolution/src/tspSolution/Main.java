@@ -45,7 +45,7 @@ public class Main {
 		
 		}catch(Exception e) {
 			
-			System.out.println("ERROR: invalid input, please enter a number");
+			System.out.println("ERROR: invalid input, please enter a valid number");
 			
 		}finally {
 			
