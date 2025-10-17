@@ -17,14 +17,12 @@ public class DistanceMatrix {
 	}
 	
 	private DistanceMatrix(HashSet<City> targets) {
-		if(targets != null) {
 			matrix = new HashMap<City , HashMap<City, Double>>();
 			cities = new HashSet<City>(targets);
 			this.matrixBuilder(cities);
-		}else {
-			matrix = new HashMap<City , HashMap<City, Double>>();
-			cities = new HashSet<City>();
-		}
+			
+	    	if(!this.checkIntegrity())
+	    		System.out.println("WARNING: matrix may be inconsistent after initialization");
 	}
 	
 	//Singleton Methods
@@ -116,6 +114,9 @@ public class DistanceMatrix {
 			
 			for(City existing : matrix.keySet()) 
 				matrix.get(other).put(existing, other.distance(existing));
+			
+	    	if(!this.checkIntegrity())
+	    		System.out.println("WARNING: matrix may be inconsistent after adding city -> " + other);
 		}else
 			System.out.println("ERROR: can't add city (" + other + ") -> already exists in matrix");
 	}
@@ -132,6 +133,9 @@ public class DistanceMatrix {
 			for(City existing : matrix.keySet()) {
 				matrix.get(existing).remove(other);
 			}
+			
+	    	if(!this.checkIntegrity())
+	    		System.out.println("WARNING: matrix may be inconsistent after removing city -> " + other);
 		}else
 			System.out.println("ERROR: can't remove city (" + other + ") -> city doesn't exist in matrix");
 	}
@@ -142,7 +146,7 @@ public class DistanceMatrix {
 	public boolean contains(City other) {return matrix.containsKey(other);}
 	public HashSet<City> getCities() {return new HashSet<City>(cities);}
 	
-	public boolean validateMatrix() {
+	public boolean checkIntegrity() {
 		boolean flagged = true;
 		
 		for(City fromCity : cities) {
@@ -152,7 +156,9 @@ public class DistanceMatrix {
 					System.out.println("WARNING: integrity issue between " + fromCity + " and " + toCity);
 					flagged = false;
 				}
-				if(!matrix.get(fromCity).get(toCity).equals(matrix.get(toCity).get(fromCity))) {
+				Double ab = matrix.get(fromCity).get(toCity);
+				Double ba = matrix.get(toCity).get(fromCity);
+				if(ab == null || ba == null || !ab.equals(ba)) {
 					System.out.println("WARNING: matrix asymmetry between " + fromCity + " and " + toCity);
 					flagged = false;
 				}
@@ -176,10 +182,8 @@ public class DistanceMatrix {
 		
 		for(City fromCity : matrix.keySet()) {
 			stringBuilder.append(String.format("%10s", fromCity.getID())).append(":");
-			for(City toCity : matrix.keySet()) {
-				String floatlim = String.format("%10.2f",matrix.get(fromCity).get(toCity));
-				stringBuilder.append(floatlim + " ");
-			}
+			for(City toCity : matrix.keySet())
+				stringBuilder.append(String.format("%10.2f ",matrix.get(fromCity).get(toCity)));
 			stringBuilder.append("\n");
 		}
 			
@@ -199,10 +203,8 @@ public class DistanceMatrix {
 		
 		for(City fromCity : matrix.keySet()) {
 			stringBuilder.append(String.format("%10s", fromCity.getID())).append(":");
-			for(City toCity : matrix.keySet()) {
-				String floatlim = String.format("%10.2f",matrix.get(fromCity).get(toCity));
-				stringBuilder.append(floatlim + " ");
-			}
+			for(City toCity : matrix.keySet())
+				stringBuilder.append(String.format("%10.2f ",matrix.get(fromCity).get(toCity)));
 			stringBuilder.append("\n");
 		}
 			

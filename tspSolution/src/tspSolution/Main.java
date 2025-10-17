@@ -9,7 +9,7 @@ public class Main {
 	public static Random ran = new Random();
 	
 	public static HashSet<City> generateRandomCities(int numOfCities){
-		if(numOfCities <= 0) System.out.println("WARNING: pointless generation -> number of cities to low +3 recommended");
+		if(numOfCities <= 0) System.out.println("WARNING: pointless generation -> number of cities too low +3 recommended");
 		
 		int range = ran.nextInt(45)+5;
 		System.out.println("Range: " + range);
@@ -36,7 +36,7 @@ public class Main {
 		City start = citiesArray[randStartCity];
 		System.out.println("Starting city: " + start.getID());
 		
-		Route path = solver.solveNearestNeighbor(start);
+		Route path = solver.solveNearestNeighborTSP(start);
 		
 		if(path != null)
 		System.out.println(path);

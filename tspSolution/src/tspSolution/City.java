@@ -4,6 +4,7 @@ public class City {
 	//Properties
 	private static int index = 1;
 	
+	// X -> longitude Y -> latitude
 	private String ID;
 	private double x, y;
 	
@@ -15,12 +16,12 @@ public class City {
 	public City(String ID ,double x, double y) {
 		//ID builder temporary for now
 		if(x < -180 || x > 180 || y < -90 || y > 90) {
-			System.out.println("WARNING: city coordinates out of normal lat/lon range -> entering edge cases");
+			System.out.println("WARNING: city coordinates out of normal lon/lat range -> entering edge cases");
 			
 			x = ((x + 180) % 360 + 360) % 360 - 180;
 			y = Math.max(-90, Math.min(90, y));
 		}
-		if(ID.toLowerCase().equals("city")) ID = "City" + index;
+		if(ID == null || ID.toLowerCase().startsWith("city")) ID = "City" + index;
 		this.ID = ID;
 		this.x = x;
 		this.y = y;

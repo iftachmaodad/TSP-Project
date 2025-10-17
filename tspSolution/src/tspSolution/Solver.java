@@ -21,7 +21,7 @@ public class Solver {
 	}
 	
 	//Methods | TSP algorithms
-    public Route solveNearestNeighbor(City start) {
+    public Route solveNearestNeighborTSP(City start) {
     	if(start == null) {
     		System.out.println("ERROR: null error -> start city is null");
     		return null;
@@ -34,9 +34,10 @@ public class Solver {
     		System.out.println("ERROR: solver has no cities to process -> solver matrix is empty");
     		return null;
     	}
-    	if(solverMatrix.size() <= 1) {
-    	    System.out.println("WARNING: solver initialized with less than two cities -> trivial route.");
-    	}
+    	
+    	if(solverMatrix.size() <= 1) System.out.println("WARNING: solver initialized with less than two cities -> trivial route.");
+    	if(!solverMatrix.checkIntegrity()) System.out.println("WARNING: matrix integrity failed before solving");
+    	
     	
         Route route = new Route(start);
         HashSet<City> unvisited = new HashSet<>(solverMatrix.getCities());
@@ -56,6 +57,10 @@ public class Solver {
                     first = false;
                 }
             }
+            if(nearest == null) {
+            	System.out.println("ERROR: no valid next city found from " + current);
+            	break;
+            }
             route.addCity(nearest, minDist);
             unvisited.remove(nearest);
             current = nearest;
@@ -67,9 +72,9 @@ public class Solver {
     }
     
     //Utility Methods
-    public boolean validateMatrix() {
-    	return solverMatrix.validateMatrix();
-    }
+    public boolean checkIntegrity() {return solverMatrix.checkIntegrity();}
+    public void addCity(City other) {solverMatrix.addCity(other);}
+    public void removeCity(City other) {solverMatrix.removeCity(other);}
     
     //Override Methods | toString Methods
     @Override

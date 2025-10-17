@@ -26,7 +26,7 @@ public class Route {
 			return;
 		}
 		if(Double.isNaN(distance)) System.out.println("WARNING: distance is not a number -> check source");
-		if(path.contains(other) && !other.equals(path.getFirst())) System.out.println("WARNING: city " + other + " is already in route");
+		if(path.contains(other) && !other.equals(path.get(0))) System.out.println("WARNING: city " + other + " is already in route");
 		
 		path.add(other);
 		totalDistance += distance;
@@ -36,14 +36,11 @@ public class Route {
 	@Override
 	public String toString() {
 		StringBuilder stringBuilder = new StringBuilder("Route: || ");
-		int size = 1;
-		for(City onPath : path) {
-			if(size == path.size()) {
-				stringBuilder.append(onPath.getID()).append(" ||");
-				continue;
-			}
-			size ++;
-			stringBuilder.append(onPath.getID()).append(" -> ");
+		for(int i = 0; i < path.size(); i++) {
+			if(i < path.size()-1) {
+				stringBuilder.append(path.get(i).getID()).append(" -> ");
+			}else
+				stringBuilder.append(path.get(i).getID()).append(" ||");
 		}
 		stringBuilder.append("\nTotal Distance: ").append(String.format("%.2f", totalDistance));
 		return stringBuilder.toString();
