@@ -21,7 +21,7 @@ public class City {
 			x = ((x + 180) % 360 + 360) % 360 - 180;
 			y = Math.max(-90, Math.min(90, y));
 		}
-		if(ID == null || ID.toLowerCase().startsWith("city")) ID = "City" + index;
+		if(ID == null || ID.isEmpty() || ID.isBlank() || ID.toLowerCase().startsWith("city")) ID = "City" + index;
 		this.ID = ID;
 		this.x = x;
 		this.y = y;

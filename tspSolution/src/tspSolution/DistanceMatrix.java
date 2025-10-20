@@ -35,10 +35,10 @@ public class DistanceMatrix {
 	
 	public static DistanceMatrix getInstance(HashSet<City> targets) {
 		if(instance == null) {
-			if(targets != null)
+			if(targets != null && !targets.isEmpty())
 				instance = new DistanceMatrix(new HashSet<City>(targets));
 			else {
-				System.out.println("ERROR: tried initilizing with null set -> initilizing empty matrix");
+				System.out.println("ERROR: tried initilizing with null or empty set -> initilizing empty matrix");
 				instance = new DistanceMatrix();
 			}
 		}
@@ -124,6 +124,10 @@ public class DistanceMatrix {
 	public void removeCity(City other) {
 		if(other == null) {
 			System.out.println("ERROR: can't remove city -> value is null");
+			return;
+		}
+		if(matrix.isEmpty()) {
+			System.out.println("ERROR: can't remove city -> matrix is empty");
 			return;
 		}
 		
