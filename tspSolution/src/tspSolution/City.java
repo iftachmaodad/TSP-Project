@@ -1,55 +1,52 @@
 package tspSolution;
 
-public class City {
-	//Properties
-	private static int index = 1;
+import java.util.HashMap;
+import java.util.Objects;
+
+public abstract class City {
+	// --- Properties ---
+	private static final HashMap<Class<? extends City>, Integer> typeCounter = new HashMap<>();
+	protected final String ID;
 	
 	// X -> longitude Y -> latitude
-	private String ID;
-	private double x, y;
+	protected final double x, y;
 	
-	//Constructors
-	public City(double x, double y) {
-		this("City", x, y);
-	}
-
-	public City(String ID ,double x, double y) {
-		//ID builder temporary for now
+	//Deadline
+	public final static double NO_DEADLINE = Double.MAX_VALUE;
+	protected final double deadline;
+	
+	// --- Constructors ---
+	public City(double x, double y) {this(null, x, y, NO_DEADLINE);}
+	public City(double x, double y, double deadline) {this(null, x, y, deadline);}
+	public City(String ID, double x, double y) {this(ID, x, y, NO_DEADLINE);}
+	
+	public City(String ID ,double x, double y, double deadline) {
 		if(x < -180 || x > 180 || y < -90 || y > 90) {
 			System.out.println("WARNING: city coordinates out of normal lon/lat range -> entering edge cases");
 			
 			x = ((x + 180) % 360 + 360) % 360 - 180;
 			y = Math.max(-90, Math.min(90, y));
 		}
-		if(ID == null || ID.isEmpty() || ID.isBlank() || ID.toLowerCase().startsWith("city")) ID = "City" + index;
+		if(ID == null || ID.isEmpty() || ID.isBlank() || ID.toLowerCase().startsWith("ERROR HERE")) ID = generateDefaultName();
+		if(deadline <= 0) deadline = NO_DEADLINE;
 		this.ID = ID;
+		this.deadline = deadline;
 		this.x = x;
 		this.y = y;
-		index++;
 	}
 	
-	//Methods
-	public double distance(City other) {
-		if (other == null) {
-		    System.out.println("WARNING: tried to calculate distance to a null city");
-		    return Double.NaN;
-		}
-		if (this.equals(other))
-		    return 0;
-		
-		    final int R = 6371;
-		    double lonDistance = Math.toRadians(other.getX() - this.x);
-		    double latDistance = Math.toRadians(other.getY() - this.y);
-		    
-		    double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
-		            + Math.cos(Math.toRadians(this.y)) * Math.cos(Math.toRadians(other.getY()))
-		            * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
-		    
-		    double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-		    double distance = R * c;
-
-		    return distance;
-		}
+	// --- Methods ---
+	public boolean hasDeadline() {return deadline != NO_DEADLINE;}
+	
+	private String generateDefaultName() {
+        Class<? extends City> type = this.getClass();
+        int count = typeCounter.getOrDefault(type, 0) + 1;
+        typeCounter.put(type, count);
+        return type.getSimpleName() + count;
+    }
+	
+	// --- Abstract Methods ---
+	public abstract double distance(City other);
 
 	//Override Methods
 	@Override
@@ -68,22 +65,20 @@ public class City {
 	@Override
 	public int hashCode() {
 		//Rounding for float point errors
-		return java.util.Objects.hash(Math.round(x * 1e6), Math.round(y * 1e6));
+		return Objects.hash(Math.round(x * 1e6), Math.round(y * 1e6));
 	}
 	
 	@Override
 	public String toString() {
-		return ID + " - {" + String.format("%.2f",x) + ", " + String.format("%.2f",y) + "}"; 
+		String returnString = ID + " - {" + String.format("%.2f",x) + ", " + String.format("%.2f",y) + "}"; 
+		if(hasDeadline()) returnString += "Due - " + deadline;
+		return returnString;
 	}
 	
-	//Getters
+	// --- Getters ---
 	public String getID() {return ID;}
+	public double getDeadline() {return deadline;}
 	public double getX() {return x;}
 	public double getY() {return y;}
-	
-	//Setters
-	public void setID(String ID) {this.ID = ID;}
-	public void setX(double x) {this.x = x;}
-	public void setY(double y) {this.y = y;}
 
 }
