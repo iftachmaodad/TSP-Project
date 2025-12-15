@@ -27,7 +27,7 @@ public abstract class City {
 			x = ((x + 180) % 360 + 360) % 360 - 180;
 			y = Math.max(-90, Math.min(90, y));
 		}
-		if(ID == null || ID.isEmpty() || ID.isBlank() || ID.toLowerCase().startsWith("ERROR HERE")) ID = generateDefaultName();
+		if(ID == null || ID.isBlank() || ID.toLowerCase().startsWith("ERROR HERE")) ID = generateDefaultName();
 		if(deadline <= 0) deadline = NO_DEADLINE;
 		this.ID = ID;
 		this.deadline = deadline;
@@ -47,7 +47,8 @@ public abstract class City {
 	
 	// --- Abstract Methods ---
 	public abstract double distance(City other);
-
+	public abstract double time(City other);
+	
 	//Override Methods
 	@Override
 	public boolean equals(Object obj) {
