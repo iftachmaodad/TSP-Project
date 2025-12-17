@@ -1,48 +1,75 @@
 package tspSolution;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
-public class Route {
-	//Properties
-	private ArrayList<City> path;
-	private double totalDistance;
-	
-	//Constructors
-	public Route(City start) {
-		path = new ArrayList<City>();
-		path.add(start);
-		totalDistance = 0;
-	}
-	
-	//Getters
-	public int size() {return path.size();}
-	public double getDistance() {return totalDistance;}
-	public ArrayList<City> getPath() {return new ArrayList<City>(path);}
-	
-	//Setters
-	public void addCity(City other, double distance) {
-		if(other == null) {
-			System.out.println("ERROR: can't add null city to route");
-			return;
-		}
-		if(Double.isNaN(distance)) System.out.println("WARNING: distance is not a number -> check source");
-		if(path.contains(other) && !other.equals(path.get(0))) System.out.println("WARNING: city " + other + " is already in route");
-		
-		path.add(other);
-		totalDistance += distance;
-	}
-	
-	//Override Methods
-	@Override
-	public String toString() {
-		StringBuilder stringBuilder = new StringBuilder("Route: || ");
-		for(int i = 0; i < path.size(); i++) {
-			if(i < path.size()-1) {
-				stringBuilder.append(path.get(i).getID()).append(" -> ");
-			}else
-				stringBuilder.append(path.get(i).getID()).append(" ||");
-		}
-		stringBuilder.append("\nTotal Distance: ").append(String.format("%.2f", totalDistance));
-		return stringBuilder.toString();
-	}
+public final class Route<T extends City> {
+    // --- Properties ---
+    private final List<T> path;
+    private double totalDistance;
+    private double totalTime;
+    private boolean valid;
+
+    // --- Constructors ---
+    public Route(T start) {
+        if (start == null)
+            throw new IllegalArgumentException("Start city cannot be null");
+
+        this.path = new ArrayList<>();
+        this.path.add(start);
+        this.totalDistance = 0;
+        this.totalTime = 0;
+        this.valid = true;
+
+        if (start.hasDeadline() && totalTime > start.getDeadline()) {
+            valid = false;
+        }
+    }
+
+    // --- Methods ---
+    public void addStep(T nextCity, double distance, double time) {
+        if (nextCity == null) {
+            System.out.println("ERROR: cannot add null city to route");
+            valid = false;
+            return;
+        }
+        if (Double.isNaN(distance) || Double.isNaN(time)) {
+            System.out.println("WARNING: invalid distance or time detected for city " + nextCity.getID());
+            valid = false;
+        }
+
+        path.add(nextCity);
+        totalDistance += distance;
+        totalTime += time;
+
+        if (nextCity.hasDeadline() && totalTime > nextCity.getDeadline()) {
+            valid = false;
+        }
+    }
+
+    // --- Override Methods ---
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder("Route: || ");
+        for (int i = 0; i < path.size(); i++) {
+            sb.append(path.get(i).getID());
+            if (i < path.size() - 1) sb.append(" -> ");
+        }
+        
+        sb.append(" ||\n");
+        sb.append("Total Distance: ").append(String.format("%.2f", totalDistance)).append("\n");
+        sb.append("Total Time: ").append(String.format("%.2f", totalTime)).append("\n");
+        sb.append("Route Valid: ").append(valid ? "YES" : "NO");
+
+        return sb.toString();
+    }
+    
+    // --- Getters ---
+    public int size() {return path.size();}
+    public double getTotalDistance() {return totalDistance;}
+    public double getTotalTime() {return totalTime;}
+    public boolean isValid() {return valid;}
+    public List<T> getPath() {return Collections.unmodifiableList(path);}
+    public T getLastCity() {return path.get(path.size() - 1);}
 }

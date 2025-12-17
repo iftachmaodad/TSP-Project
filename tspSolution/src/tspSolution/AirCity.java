@@ -1,6 +1,9 @@
 package tspSolution;
 
 public class AirCity extends City{
+    // Constant: Average Drone Speed (~60 KM/h)
+    private static final double DRONE_SPEED = 16.67; // m/s
+	
 	// --- Constructors ---
 	public AirCity(double x, double y) {super(x, y);}
 	public AirCity(double x, double y, double deadline) {super(x, y, deadline);}
@@ -46,9 +49,7 @@ public class AirCity extends City{
 		}
 		if (this.equals(other))
 		    return 0;
-		
-		//Aprx 60-KM/H
-		double DRONE_SPEED = 16.67;
+
 		double distance = distance(other);
 		
 		if(Double.isNaN(distance))
