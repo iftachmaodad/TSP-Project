@@ -1,1 +1,38 @@
-/.metadata/
+# ========================
+# Eclipse / IDE files
+# ========================
+.metadata/
+.project
+.classpath
+.settings/
+bin/
+
+# ========================
+# Maven
+# ========================
+target/
+*.log
+
+# ========================
+# Java
+# ========================
+*.class
+hs_err_pid*
+
+# ========================
+# OS / Windows
+# ========================
+Thumbs.db
+Desktop.ini
+
+# ========================
+# OneDrive (optional but recommended)
+# ========================
+~$*
+*.tmp
+
+# ========================
+# Secrets / API keys
+# ========================
+*.env
+.env

@@ -4,6 +4,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 public final class CityRegistry {
+	public enum CalculationStrategy {
+		LOCAL_MATH,
+		API_REQUIRED
+	}
+	
 	// --- Properties ---
     private static final Map<Class<? extends City>, CalculationStrategy> TYPE_REGISTRY = new HashMap<>();
     static {
@@ -20,9 +25,9 @@ public final class CityRegistry {
     public static void register(Class<? extends City> type, CalculationStrategy strategy) {TYPE_REGISTRY.put(type, strategy);}
     public static boolean exists(Class<? extends City> type) {return TYPE_REGISTRY.containsKey(type);}
     
-    public static boolean startsWith(String type) {
+    public static boolean startsWithIgnoreCase(String type) {
     	for(Class<? extends City> cityType : TYPE_REGISTRY.keySet()) {
-    		if(type.startsWith(cityType.getSimpleName().toLowerCase()))
+    		if(type.toLowerCase().startsWith(cityType.getSimpleName().toLowerCase()))
     			return true;
     	}
     	return false;

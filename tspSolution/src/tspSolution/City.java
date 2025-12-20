@@ -27,7 +27,7 @@ public abstract class City {
 			x = ((x + 180) % 360 + 360) % 360 - 180;
 			y = Math.max(-90, Math.min(90, y));
 		}
-		if(ID == null || ID.isBlank() || CityRegistry.startsWith(ID)) ID = generateDefaultName();
+		if(ID == null || ID.isBlank() || CityRegistry.startsWithIgnoreCase(ID)) ID = generateDefaultName();
 		if(deadline <= 0) deadline = NO_DEADLINE;
 		this.ID = ID;
 		this.deadline = deadline;
@@ -81,5 +81,5 @@ public abstract class City {
 	public double getDeadline() {return deadline;}
 	public double getX() {return x;}
 	public double getY() {return y;}
-
+	
 }

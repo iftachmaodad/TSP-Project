@@ -3,7 +3,8 @@ package tspSolution;
 public class AirCity extends City{
     // Constant: Average Drone Speed (~60 KM/h)
     private static final double DRONE_SPEED = 16.67; // m/s
-	
+    private static final double EARTH_RADIUS = 6371000; // in meters
+    
 	// --- Constructors ---
 	public AirCity(double x, double y) {super(x, y);}
 	public AirCity(double x, double y, double deadline) {super(x, y, deadline);}
@@ -24,7 +25,6 @@ public class AirCity extends City{
 		if (this.equals(other))
 		    return 0;
 		
-        final int R = 6371000;
         double lat1 = Math.toRadians(this.y);
         double lat2 = Math.toRadians(other.y);
         double dLat = Math.toRadians(other.y - this.y);
@@ -34,7 +34,7 @@ public class AirCity extends City{
                    Math.cos(lat1) * Math.cos(lat2) *
                    Math.sin(dLon/2) * Math.sin(dLon/2);
         
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return EARTH_RADIUS * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 		}
 	
 	@Override

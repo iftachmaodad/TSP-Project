@@ -17,9 +17,7 @@ public class GroundCity extends City{
 	}
 	
 	// --- Methods ---
-	private String generateDefaultAddress() {
-		return "{" + x + ", " + y + "}";
-	}
+	private String generateDefaultAddress() {return String.format("{%.6f, %.6f}", y, x);}
 	
 	@Override
 	public double distance(City other) {
@@ -35,7 +33,6 @@ public class GroundCity extends City{
 		    return 0;
 		
 		//Return NaN for API
-		
 		return Double.NaN;
 	}
 	
@@ -53,7 +50,6 @@ public class GroundCity extends City{
 		    return 0;
 		
 		//Return NaN for API
-		
 		return Double.NaN;
 	}
 	
