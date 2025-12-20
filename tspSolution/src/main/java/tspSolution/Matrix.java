@@ -26,7 +26,7 @@ public final class Matrix<T extends City> {
     public static <T extends City> Matrix<T> getInstance(Class<T> requestedType) {
         if (!CityRegistry.exists(requestedType)) {
             throw new IllegalArgumentException(
-                "Type '" + requestedType.getSimpleName() + "' is not registered in CityRegistry."
+                    "Type '" + requestedType.getSimpleName() + "' is not registered in CityRegistry."
             );
         }
 
@@ -36,9 +36,9 @@ public final class Matrix<T extends City> {
 
         if (!instance.type.equals(requestedType)) {
             throw new IllegalStateException(
-                "CRITICAL ERROR: Matrix is already initialized for type [" + instance.type.getSimpleName() +
-                "]. You requested [" + requestedType.getSimpleName() + "]. " +
-                "You must call Matrix.reset() before switching modes."
+                    "CRITICAL ERROR: Matrix is already initialized for type [" + instance.type.getSimpleName() +
+                            "]. You requested [" + requestedType.getSimpleName() + "]. " +
+                            "You must call Matrix.reset() before switching modes."
             );
         }
         return (Matrix<T>) instance;
@@ -48,10 +48,16 @@ public final class Matrix<T extends City> {
         instance = null;
     }
 
+    // ✅ NEW: hard clear all cities (fixes “removed cities still in solver”)
+    public void clearCities() {
+        cities.clear();
+        invalidate();
+    }
+
     // --- Methods ---
-    public static boolean hasGoogleService() {return googleService != null;}
-    public boolean requiresApi() {return CityRegistry.getStrategy(this.type) == CityRegistry.CalculationStrategy.API_REQUIRED;}
-    
+    public static boolean hasGoogleService() { return googleService != null; }
+    public boolean requiresApi() { return CityRegistry.getStrategy(this.type) == CityRegistry.CalculationStrategy.API_REQUIRED; }
+
     public void addCity(T city) {
         if (city == null) return;
         if (cities.add(city)) invalidate();
@@ -163,7 +169,6 @@ public final class Matrix<T extends City> {
         printTable(sb, distanceMatrix, viewList);
 
         sb.append("\n");
-
         sb.append("--- Time Matrix (Seconds) ---\n");
         printTable(sb, timeMatrix, viewList);
 
@@ -191,7 +196,7 @@ public final class Matrix<T extends City> {
             sb.append("\n");
         }
     }
-    
+
     // --- Setters ---
     public static void setGoogleMapsService(GoogleMapsService service) { googleService = service; }
 
@@ -210,7 +215,6 @@ public final class Matrix<T extends City> {
         if (c == null) return -1;
         if (!cityListSnapshot.isEmpty()) return cityListSnapshot.indexOf(c);
 
-        // Fallback: if snapshot isn't built yet, still try to find it in the set order
         int idx = 0;
         for (T city : cities) {
             if (city.equals(c)) return idx;

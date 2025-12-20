@@ -2,18 +2,9 @@ package tspSolution;
 
 import java.util.List;
 
-/**
- * Central place to evaluate a route order using the matrix:
- * - Computes total distance/time
- * - Checks deadlines exactly by arrival time
- *
- * Assumes routeOrder is an explicit order including the closing start city at the end.
- */
 public final class RouteEvaluator {
-    // --- Constructor ---
     private RouteEvaluator() {}
 
-    // --- Methods ---
     public static <T extends City> Route<T> evaluate(List<T> routeOrder, Matrix<T> matrix) {
         if (routeOrder == null || routeOrder.size() < 2) {
             throw new IllegalArgumentException("Route order must contain at least 2 cities (start and end).");
@@ -31,14 +22,10 @@ public final class RouteEvaluator {
             double dist = matrix.getDistance(i, j);
             double time = matrix.getTime(i, j);
 
-            if (Double.isNaN(dist) || Double.isNaN(time)) {
-                route.setDebugLog("Matrix has N/A edge: " + prev.getID() + " -> " + next.getID());
-                // still add step but will likely become invalid / meaningless
-                route.addStep(next, Double.NaN, Double.NaN);
-                return route;
-            }
-
             route.addStep(next, dist, time);
+
+            // if it became invalid due to NaN or deadline, stop early
+            if (!route.isValid()) return route;
         }
 
         return route;

@@ -10,6 +10,10 @@ public final class TspApp extends Application {
         UiController ui = new UiController();
 
         Scene scene = new Scene(ui.getRoot(), 1200, 750);
+
+        var css = getClass().getResource("/styles/app.css");
+        if (css != null) scene.getStylesheets().add(css.toExternalForm());
+
         stage.setTitle("TSP Solver (Map UI)");
         stage.setScene(scene);
         stage.show();

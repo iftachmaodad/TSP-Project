@@ -9,48 +9,95 @@ import javafx.scene.layout.*;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
+import java.util.List;
 
 public final class UiController {
-    // --- UI State ---
+
     private final BorderPane root = new BorderPane();
     private final MapViewPane mapPane = new MapViewPane();
 
     private final ObservableList<City> cities = FXCollections.observableArrayList();
-    private final ObservableList<City> routePreview = FXCollections.observableArrayList();
 
-    // Controls
     private final ComboBox<Class<? extends City>> modeBox = new ComboBox<>();
+    private final ComboBox<String> solverBox = new ComboBox<>();
     private final ComboBox<City> startBox = new ComboBox<>();
     private final TextField nameField = new TextField();
     private final TextField deadlineField = new TextField();
-    private final Label coordLabel = new Label("Click on the map to choose coordinates");
+    private final Label coordLabel = new Label("Left-click = select. Shift+Drag = pan. Scroll = zoom.");
+
+    private final Button showReportBtn = new Button("📄 Show Last Report");
+    private Route<? extends City> lastRoute = null;
 
     private double pendingLon = Double.NaN;
     private double pendingLat = Double.NaN;
 
-    // --- Constructor ---
+    private VBox fullPanel;
+    private VBox collapsedBar;
+
     public UiController() {
         buildLayout();
         hookEvents();
         loadModes();
+
+        mapPane.setWrapX(true);
     }
 
-    // --- Public ---
     public Parent getRoot() {
         return root;
     }
 
-    // --- UI Build ---
     private void buildLayout() {
-        root.setPadding(new Insets(10));
+        root.setPadding(new Insets(0));
         root.setCenter(mapPane);
 
+        fullPanel = buildFullPanel();
+        collapsedBar = buildCollapsedBar();
+
+        root.setLeft(fullPanel);
+    }
+
+    private VBox buildCollapsedBar() {
+        VBox bar = new VBox(10);
+        bar.setPadding(new Insets(10));
+        bar.setPrefWidth(48);
+
+        Button open = new Button("☰");
+        open.setFocusTraversable(false);
+        open.setOnAction(e -> root.setLeft(fullPanel));
+
+        bar.getChildren().add(open);
+        return bar;
+    }
+
+    private VBox buildFullPanel() {
         VBox left = new VBox(10);
         left.setPadding(new Insets(10));
         left.setPrefWidth(360);
 
+        HBox header = new HBox(10);
         Label title = new Label("TSP Controls");
         title.setStyle("-fx-font-size: 18; -fx-font-weight: bold;");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button hide = new Button("⯇");
+        hide.setFocusTraversable(false);
+        hide.setOnAction(e -> root.setLeft(collapsedBar));
+
+        header.getChildren().addAll(title, spacer, hide);
+
+        Button controlsBtn = new Button("ℹ Controls");
+        controlsBtn.setOnAction(e -> alert("Controls",
+                "• Left-click: select coordinate (shows target marker)\n" +
+                "• Shift + Drag: pan\n" +
+                "• Scroll: zoom\n" +
+                "• Start city marker: gold ring + 'S'\n" +
+                "• Deadline city marker: cyan ring + 'D'\n"
+        ));
+
+        solverBox.getItems().setAll("Optimized (2-Opt)", "Fast (no 2-Opt)");
+        solverBox.getSelectionModel().select(0);
 
         modeBox.setPromptText("Choose City Type (Mode)");
         startBox.setPromptText("Choose Start City");
@@ -58,73 +105,89 @@ public final class UiController {
         nameField.setPromptText("City name (optional)");
         deadlineField.setPromptText("Deadline seconds (optional)");
 
-        Button addBtn = new Button("Add City (from last click)");
-        Button removeBtn = new Button("Remove Selected City");
-        Button clearBtn = new Button("Clear All");
-        Button solveBtn = new Button("Solve");
+        Button addBtn = new Button("📍 Add City");
+        Button removeBtn = new Button("🗑 Remove Selected");
+        Button clearBtn = new Button("🧹 Clear All");
+        Button solveBtn = new Button("✅ Solve");
+
+        CheckBox showLabels = new CheckBox("Show labels on map");
+        showLabels.setSelected(true);
+        showLabels.setOnAction(e -> mapPane.setShowLabels(showLabels.isSelected()));
+
+        showReportBtn.setDisable(true);
+        showReportBtn.setOnAction(e -> {
+            if (lastRoute != null) alert("Last Report", lastRoute.toString());
+        });
 
         ListView<City> cityListView = new ListView<>(cities);
-        cityListView.setPrefHeight(250);
+        cityListView.setPrefHeight(240);
+
+        addBtn.setOnAction(e -> addCityFromPendingClick());
 
         removeBtn.setOnAction(e -> {
             City sel = cityListView.getSelectionModel().getSelectedItem();
-            if (sel != null) {
-                cities.remove(sel);
-                refreshStartBox();
-                mapPane.setCities(new ArrayList<>(cities));
-            }
-        });
+            if (sel == null) return;
 
-        clearBtn.setOnAction(e -> {
-            cities.clear();
-            routePreview.clear();
+            cities.remove(sel);
+            clearSolutionOnly();
+
             refreshStartBox();
             mapPane.setCities(new ArrayList<>(cities));
-            mapPane.setRoute(null);
+            mapPane.setStartCity(startBox.getValue());
         });
 
-        addBtn.setOnAction(e -> addCityFromPendingClick());
+        clearBtn.setOnAction(e -> clearAll());
+
         solveBtn.setOnAction(e -> solveNow());
 
+        startBox.setOnAction(e -> {
+            clearSolutionOnly();
+            mapPane.setStartCity(startBox.getValue());
+        });
+
         left.getChildren().addAll(
-                title,
+                header,
+                controlsBtn,
                 new Separator(),
-                new Label("Mode (City Type):"),
+                new Label("Mode:"),
                 modeBox,
+                new Label("Solver:"),
+                solverBox,
                 new Label("Start City:"),
                 startBox,
+                showLabels,
                 new Separator(),
                 coordLabel,
                 nameField,
                 deadlineField,
                 addBtn,
                 new Separator(),
-                new Label("Cities:"),
+                new Label("Cities (⏱ = has deadline):"),
                 cityListView,
                 removeBtn,
                 clearBtn,
                 new Separator(),
-                solveBtn
+                solveBtn,
+                showReportBtn
         );
 
-        root.setLeft(left);
+        return left;
     }
 
     private void hookEvents() {
         mapPane.setOnMapClick((lon, lat) -> {
             pendingLon = lon;
             pendingLat = lat;
+
             coordLabel.setText(String.format("Selected: lon=%.6f  lat=%.6f", lon, lat));
+
+            // ✅ ensure marker appears instantly
+            mapPane.setPendingMarker(lon, lat);
         });
 
         modeBox.setOnAction(e -> {
             Matrix.reset();
-            routePreview.clear();
-            mapPane.setRoute(null);
-
-            cities.clear();
-            refreshStartBox();
-            mapPane.setCities(new ArrayList<>(cities));
+            clearAll();
         });
     }
 
@@ -133,7 +196,6 @@ public final class UiController {
         if (!modeBox.getItems().isEmpty()) modeBox.getSelectionModel().select(0);
     }
 
-    // --- Actions ---
     private void addCityFromPendingClick() {
         if (Double.isNaN(pendingLon) || Double.isNaN(pendingLat)) {
             alert("No coordinates", "Click on the map first.");
@@ -146,123 +208,169 @@ public final class UiController {
             return;
         }
 
-        String name = nameField.getText();
-        Double deadline = parseDeadline(deadlineField.getText());
+        City city = createCity(
+                type,
+                nameField.getText(),
+                pendingLon,
+                pendingLat,
+                parseDeadline(deadlineField.getText())
+        );
 
-        City c = createCity(type, name, pendingLon, pendingLat, deadline);
-        if (c == null) {
-            alert("Create failed", "Could not create city. Make sure your city class has a constructor:\n(String id, double x, double y, double deadline)");
+        if (city == null) {
+            alert("Create failed", "Expected constructor:\n(String id, double x, double y, double deadline)");
             return;
         }
 
-        if (!cities.contains(c)) {
-            cities.add(c);
-            refreshStartBox();
-            mapPane.setCities(new ArrayList<>(cities));
-        } else {
-            alert("Duplicate", "A city with the same coordinates already exists.");
+        if (cities.contains(city)) {
+            alert("Duplicate", "City with same coordinates already exists.");
+            return;
         }
+
+        cities.add(city);
+
+        clearSolutionOnly();
+        refreshStartBox();
+
+        mapPane.setCities(new ArrayList<>(cities));
+        mapPane.setStartCity(startBox.getValue());
+
+        pendingLon = Double.NaN;
+        pendingLat = Double.NaN;
+        mapPane.clearPendingMarker();
+        coordLabel.setText("Left-click = select. Shift+Drag = pan. Scroll = zoom.");
     }
 
-    // ✅ UPDATED: solveNow() (this is the important change)
     private void solveNow() {
         Class<? extends City> type = modeBox.getValue();
-        if (type == null) {
-            alert("No mode", "Choose a city type first.");
-            return;
-        }
-        if (cities.size() < 2) {
-            alert("Not enough cities", "Add at least 2 cities.");
-            return;
-        }
-
         City start = startBox.getValue();
-        if (start == null) {
-            alert("No start city", "Choose a start city.");
+
+        if (type == null || start == null || cities.size() < 2) {
+            alert("Invalid input", "Choose mode, start city, and add at least 2 cities.");
             return;
         }
 
-        // Build matrix for this type (avoid raw types)
-        @SuppressWarnings("unchecked")
-        Class<City> castType = (Class<City>) type;
-
-        Matrix<City> matrix = Matrix.getInstance(castType);
-        matrix.invalidate();
-
-        for (City c : cities) {
-            if (!type.equals(c.getClass())) {
-                alert("Type mismatch", "All cities must be of the selected mode type.");
-                return;
-            }
-            matrix.addCity(c);
-        }
-
-        // If API type: ask for key if missing
-        if (matrix.requiresApi() && !Matrix.hasGoogleService()) {
-            TextInputDialog dialog = new TextInputDialog();
-            dialog.setTitle("Google API Key Needed");
-            dialog.setHeaderText("This city type requires Google Distance Matrix API");
-            dialog.setContentText("Enter API key:");
-
-            dialog.showAndWait().ifPresentOrElse(key -> {
-                if (key.isBlank()) {
-                    alert("Missing key", "You entered an empty key.");
-                } else {
-                    Matrix.setGoogleMapsService(new GoogleMapsService(key.trim()));
-                }
-            }, () -> {
-                alert("Cancelled", "No key provided, cannot populate API matrix.");
-            });
-        }
-
-        boolean ok = matrix.populateMatrix();
-        if (!ok || !matrix.checkIntegrity()) {
-            alert("Matrix failed", "Matrix could not be populated (API key missing / API error / invalid setup).");
-            return;
-        }
-
-        Solver<City> solver = new SlackInsertion2OptSolver<>(matrix);
-        Route<City> route = solver.solve(start);
-
-        if (route == null) {
-            alert("Solve failed", "Solver returned null (should not happen).");
-            return;
-        }
-
-        // draw
-        mapPane.setRoute(route.getPath());
-
-        alert("Solved", route.toString());
+        // easiest safe way without changing your Matrix class:
+        // fresh instance each solve so old cities don't “stick”
+        Matrix.reset();
+        solveNowTyped(type, start);
     }
 
-    // --- Helpers ---
-    private void refreshStartBox() {
-        startBox.getItems().setAll(cities);
-        if (!cities.isEmpty() && startBox.getValue() == null) {
-            startBox.getSelectionModel().select(0);
-        } else if (startBox.getValue() != null && !cities.contains(startBox.getValue())) {
-            startBox.getSelectionModel().clearSelection();
+    private <T extends City> void solveNowTyped(Class<T> type, City rawStart) {
+        if (!type.isInstance(rawStart)) {
+            alert("Type mismatch", "Start city is not of selected type.");
+            return;
         }
+
+        Matrix<T> matrix = Matrix.getInstance(type);
+
+        for (City c : cities) {
+            if (!type.isInstance(c)) {
+                alert("Type mismatch", "All cities must match selected mode.");
+                return;
+            }
+            matrix.addCity(type.cast(c));
+        }
+
+        if (matrix.requiresApi() && !Matrix.hasGoogleService()) {
+            TextInputDialog d = new TextInputDialog();
+            d.setTitle("Google API Key");
+            d.setHeaderText("API required for this city type");
+            d.setContentText("Enter API key:");
+
+            var res = d.showAndWait();
+            if (res.isEmpty() || res.get().isBlank()) return;
+
+            Matrix.setGoogleMapsService(new GoogleMapsService(res.get().trim()));
+        }
+
+        if (!matrix.populateMatrix() || !matrix.checkIntegrity()) {
+            alert("Matrix Error", "Failed to populate matrix.");
+            return;
+        }
+
+        Solver<T> solver =
+                (solverBox.getValue() != null && solverBox.getValue().startsWith("Fast"))
+                        ? new SlackInsertionSolver<>(matrix)
+                        : new SlackInsertion2OptSolver<>(matrix);
+
+        Route<T> route = solver.solve(type.cast(rawStart));
+
+        lastRoute = route;
+        showReportBtn.setDisable(false);
+
+        mapPane.setStartCity(type.cast(rawStart));
+
+        List<City> draw = new ArrayList<>();
+        for (T c : route.getPath()) draw.add(c);
+        mapPane.setRoute(draw);
+
+        alert(route.isValid() ? "Solved (VALID)" : "Solved (INVALID)", route.toString());
+    }
+
+    private void refreshStartBox() {
+        City current = startBox.getValue();
+        startBox.getItems().setAll(cities);
+
+        if (cities.isEmpty()) {
+            startBox.setValue(null);
+            mapPane.setStartCity(null);
+            return;
+        }
+
+        if (current != null && cities.contains(current)) {
+            startBox.setValue(current);
+            return;
+        }
+
+        startBox.getSelectionModel().select(0);
+    }
+
+    private void clearSolutionOnly() {
+        lastRoute = null;
+        showReportBtn.setDisable(true);
+        mapPane.setRoute(null);
+    }
+
+    private void clearAll() {
+        cities.clear();
+        lastRoute = null;
+        showReportBtn.setDisable(true);
+
+        startBox.getItems().clear();
+        startBox.setValue(null);
+
+        mapPane.setCities(new ArrayList<>());
+        mapPane.setRoute(null);
+        mapPane.setStartCity(null);
+        mapPane.clearPendingMarker();
+
+        coordLabel.setText("Left-click = select. Shift+Drag = pan. Scroll = zoom.");
+        pendingLon = Double.NaN;
+        pendingLat = Double.NaN;
     }
 
     private Double parseDeadline(String s) {
-        if (s == null) return null;
-        s = s.trim();
-        if (s.isEmpty()) return null;
         try {
-            double d = Double.parseDouble(s);
-            if (d <= 0) return null;
-            return d;
+            if (s == null || s.isBlank()) return null;
+            double d = Double.parseDouble(s.trim());
+            return d > 0 ? d : null;
         } catch (Exception e) {
             return null;
         }
     }
 
-    private City createCity(Class<? extends City> type, String name, double lon, double lat, Double deadline) {
+    private City createCity(Class<? extends City> type,
+                            String name,
+                            double lon,
+                            double lat,
+                            Double deadline) {
         try {
-            Constructor<? extends City> ctor = type.getConstructor(String.class, double.class, double.class, double.class);
+            Constructor<? extends City> ctor =
+                    type.getConstructor(String.class, double.class, double.class, double.class);
+
             String id = (name == null || name.isBlank()) ? null : name.trim();
             double d = (deadline == null) ? City.NO_DEADLINE : deadline;
+
             return ctor.newInstance(id, lon, lat, d);
         } catch (Exception e) {
             return null;
