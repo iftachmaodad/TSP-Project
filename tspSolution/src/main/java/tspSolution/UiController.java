@@ -249,8 +249,6 @@ public final class UiController {
             return;
         }
 
-        // easiest safe way without changing your Matrix class:
-        // fresh instance each solve so old cities don't “stick”
         Matrix.reset();
         solveNowTyped(type, start);
     }

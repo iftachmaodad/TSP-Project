@@ -79,7 +79,6 @@ public final class SlackInsertionSolver<T extends City> implements Solver<T> {
             remaining.remove(best.city());
         }
 
-        // Light improvement
         RouteImprover.improveClosedValid(routeOrder, matrix, 2);
 
         Route<T> result = RouteEvaluator.evaluate(routeOrder, matrix);

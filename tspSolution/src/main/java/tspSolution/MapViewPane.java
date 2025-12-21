@@ -38,7 +38,7 @@ public final class MapViewPane extends StackPane {
 
     // zoom: screenPixels = worldPixels * zoom
     private double zoom = 1.0;
-    private static final double MIN_ZOOM = 1.0;   // don't show outside vertically
+    private static final double MIN_ZOOM = 1.0;
     private static final double MAX_ZOOM = 10.0;
 
     // wrap horizontally
@@ -154,7 +154,6 @@ public final class MapViewPane extends StackPane {
             double lon = worldXToLon(wx);
             double lat = worldYToLat(wy);
 
-            // ✅ pending marker ALWAYS updates and redraws
             setPendingMarker(lon, lat);
 
             if (onMapClick != null) onMapClick.accept(lon, lat);
@@ -207,7 +206,7 @@ public final class MapViewPane extends StackPane {
     }
 
     public void setRoute(List<City> routePath) {
-        this.route = routePath; // can be null
+        this.route = routePath;
         redraw();
     }
 

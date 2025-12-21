@@ -4,16 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class RouteImprover {
-
     private RouteImprover() {}
 
-    /**
-     * Improves a CLOSED routeOrder: [start, ..., start] using:
-     * 1) Relocate (move one node elsewhere)
-     * 2) Global 2-opt (remove crossings / shorten distance)
-     *
-     * Every move is accepted ONLY if the route stays VALID and distance improves.
-     */
     public static <T extends City> void improveClosedValid(List<T> routeOrder, Matrix<T> matrix, int maxPasses) {
         if (routeOrder == null || routeOrder.size() < 4) return;
         if (!routeOrder.get(0).equals(routeOrder.get(routeOrder.size() - 1))) return;
@@ -28,11 +20,6 @@ public final class RouteImprover {
         }
     }
 
-    /**
-     * Or-Opt 1 / Relocate:
-     * Remove one node (not start) and insert it somewhere else.
-     * First-improvement strategy (fast and effective).
-     */
     private static <T extends City> boolean relocatePass(List<T> routeOrder, Matrix<T> matrix) {
         Route<T> base = RouteEvaluator.evaluate(routeOrder, matrix);
         if (!base.isValid()) return false;
@@ -72,10 +59,6 @@ public final class RouteImprover {
         return false;
     }
 
-    /**
-     * Global 2-opt over the whole closed loop (excluding fixed start endpoints).
-     * First-improvement strategy.
-     */
     private static <T extends City> boolean twoOptPass(List<T> routeOrder, Matrix<T> matrix) {
         Route<T> base = RouteEvaluator.evaluate(routeOrder, matrix);
         if (!base.isValid()) return false;

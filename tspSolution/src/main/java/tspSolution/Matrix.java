@@ -48,7 +48,6 @@ public final class Matrix<T extends City> {
         instance = null;
     }
 
-    // ✅ NEW: hard clear all cities (fixes “removed cities still in solver”)
     public void clearCities() {
         cities.clear();
         invalidate();
