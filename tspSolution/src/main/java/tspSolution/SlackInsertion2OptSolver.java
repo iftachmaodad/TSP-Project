@@ -35,14 +35,15 @@ public final class SlackInsertion2OptSolver<T extends City> implements Solver<T>
             else flexible.add(c);
         }
 
-        // If direct travel from start already misses an urgent deadline, no valid solution exists.
+        // Infeasible instance check (must mark INVALID, not VALID).
         for (T u : urgent) {
             int i = matrix.getIndexOf(startCity);
             int j = matrix.getIndexOf(u);
             double direct = matrix.getTime(i, j);
+
             if (!Double.isNaN(direct) && direct > u.getDeadline()) {
                 Route<T> r = new Route<>(startCity);
-                r.setDebugLog("No valid route: direct travel to urgent city " + u.getID() + " already misses its deadline.");
+                r.invalidate("No valid route: direct travel to urgent city " + u.getID() + " already misses its deadline.");
                 return r;
             }
         }
@@ -64,7 +65,6 @@ public final class SlackInsertion2OptSolver<T extends City> implements Solver<T>
         Route<T> bestInvalid = null;
 
         for (List<T> urgentOrder : urgentOrderings) {
-            // CLOSED route: [start, ..., start]
             List<T> routeOrder = new ArrayList<>();
             routeOrder.add(startCity);
             routeOrder.addAll(urgentOrder);
@@ -76,7 +76,6 @@ public final class SlackInsertion2OptSolver<T extends City> implements Solver<T>
                 continue;
             }
 
-            // Insert flexible cities greedily
             List<T> remaining = new ArrayList<>(flexible);
 
             while (!remaining.isEmpty()) {
@@ -93,7 +92,6 @@ public final class SlackInsertion2OptSolver<T extends City> implements Solver<T>
                 remaining.remove(best.city());
             }
 
-            // Strong improvement step: relocate + global 2-opt, validity-preserving
             RouteImprover.improveClosedValid(routeOrder, matrix, 8);
 
             Route<T> result = RouteEvaluator.evaluate(routeOrder, matrix);
@@ -113,7 +111,7 @@ public final class SlackInsertion2OptSolver<T extends City> implements Solver<T>
         }
 
         if (bestInvalid != null) {
-            bestInvalid.setDebugLog("No valid route found. Returning best invalid route found by the heuristic.");
+            bestInvalid.invalidate("No valid route found. Returning best invalid route found by the heuristic.");
             return bestInvalid;
         }
 
@@ -135,7 +133,6 @@ public final class SlackInsertion2OptSolver<T extends City> implements Solver<T>
     private Insertion<T> bestFeasibleInsertion(List<T> routeOrder, T city) {
         Insertion<T> best = null;
 
-        // Closed route: insert anywhere before last element (closing start)
         for (int idx = 1; idx < routeOrder.size(); idx++) {
             double delta = RouteEvaluator.deltaDistanceIfInsert(routeOrder, matrix, idx, city);
             if (Double.isNaN(delta)) continue;
@@ -157,8 +154,6 @@ public final class SlackInsertion2OptSolver<T extends City> implements Solver<T>
     private Route<T> chooseBetterInvalid(Route<T> a, Route<T> b) {
         if (a == null) return b;
         if (b == null) return a;
-
-        // Simple tie-break: smaller totalTime is "less bad"
         return b.getTotalTime() < a.getTotalTime() ? b : a;
     }
 
@@ -173,7 +168,7 @@ public final class SlackInsertion2OptSolver<T extends City> implements Solver<T>
         if (cities.isEmpty()) throw new IllegalStateException("Matrix has no cities.");
         T start = cities.get(0);
         Route<T> r = new Route<>(start);
-        r.setDebugLog("SOLVER ERROR: " + msg);
+        r.invalidate("SOLVER ERROR: " + msg);
         return r;
     }
 }
