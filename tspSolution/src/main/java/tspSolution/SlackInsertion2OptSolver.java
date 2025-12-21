@@ -1,90 +1,171 @@
 package tspSolution;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Random;
 
 public final class SlackInsertion2OptSolver<T extends City> implements Solver<T> {
-    // --- Properties ---
-    private final Matrix<T> matrix;
 
-    // --- Constructors ---
+    private final Matrix<T> matrix;
+    private static final int RANDOM_TRIES = 25;
+
     public SlackInsertion2OptSolver(Matrix<T> matrix) {
         if (matrix == null) throw new IllegalArgumentException("Matrix cannot be null");
         this.matrix = matrix;
     }
 
-    // --- Methods ---
     @Override
     public Route<T> solve(T startCity) {
         if (startCity == null) throw new IllegalArgumentException("Start city cannot be null");
-        if (!matrix.getCities().contains(startCity)) return fail("Start city is not inside the matrix cities set.");
+        if (!matrix.getCities().contains(startCity)) return fail("Start city is not inside matrix.");
 
         if (!matrix.checkIntegrity()) {
-            boolean ok = matrix.populateMatrix();
-            if (!ok || !matrix.checkIntegrity()) return fail("Matrix could not be populated.");
+            if (!matrix.populateMatrix() || !matrix.checkIntegrity())
+                return fail("Matrix could not be populated.");
         }
 
-        List<T> all = matrix.getCities();
         List<T> urgent = new ArrayList<>();
         List<T> flexible = new ArrayList<>();
 
-        for (T c : all) {
+        for (T c : matrix.getCities()) {
             if (c.equals(startCity)) continue;
             if (c.hasDeadline()) urgent.add(c);
             else flexible.add(c);
         }
 
-        urgent.sort(Comparator.comparingDouble(c -> slackFromStart(startCity, c)));
-
-        List<T> routeOrder = new ArrayList<>();
-        routeOrder.add(startCity);
-        routeOrder.addAll(urgent);
-        routeOrder.add(startCity); // closed loop
-
-        Route<T> urgentOnly = RouteEvaluator.evaluate(routeOrder, matrix);
-        if (!urgentOnly.isValid()) {
-            urgentOnly.setDebugLog("Urgent-only route already misses a deadline.");
-            return urgentOnly;
+        // If direct travel from start already misses an urgent deadline, no valid solution exists.
+        for (T u : urgent) {
+            int i = matrix.getIndexOf(startCity);
+            int j = matrix.getIndexOf(u);
+            double direct = matrix.getTime(i, j);
+            if (!Double.isNaN(direct) && direct > u.getDeadline()) {
+                Route<T> r = new Route<>(startCity);
+                r.setDebugLog("No valid route: direct travel to urgent city " + u.getID() + " already misses its deadline.");
+                return r;
+            }
         }
 
-        List<T> remaining = new ArrayList<>(flexible);
-        while (!remaining.isEmpty()) {
-            Insertion<T> best = null;
+        List<List<T>> urgentOrderings = new ArrayList<>();
 
-            for (T candidate : remaining) {
-                Insertion<T> ins = bestFeasibleInsertion(routeOrder, candidate);
-                if (ins != null && (best == null || ins.deltaDistance() < best.deltaDistance())) best = ins;
+        urgentOrderings.add(sortedCopy(urgent, Comparator.comparingDouble(City::getDeadline)));
+        urgentOrderings.add(sortedCopy(urgent, Comparator.comparingDouble(u -> slackFromStart(startCity, u))));
+        urgentOrderings.add(sortedCopy(urgent, Comparator.comparingDouble(u -> safeTime(startCity, u))));
+
+        Random rnd = new Random();
+        for (int i = 0; i < RANDOM_TRIES; i++) {
+            List<T> shuf = new ArrayList<>(urgent);
+            Collections.shuffle(shuf, rnd);
+            urgentOrderings.add(shuf);
+        }
+
+        Route<T> bestValid = null;
+        Route<T> bestInvalid = null;
+
+        for (List<T> urgentOrder : urgentOrderings) {
+            // CLOSED route: [start, ..., start]
+            List<T> routeOrder = new ArrayList<>();
+            routeOrder.add(startCity);
+            routeOrder.addAll(urgentOrder);
+            routeOrder.add(startCity);
+
+            Route<T> urgentOnly = RouteEvaluator.evaluate(routeOrder, matrix);
+            if (!urgentOnly.isValid()) {
+                bestInvalid = chooseBetterInvalid(bestInvalid, urgentOnly);
+                continue;
             }
 
-            if (best == null) break;
+            // Insert flexible cities greedily
+            List<T> remaining = new ArrayList<>(flexible);
 
-            routeOrder.add(best.index(), best.city());
-            remaining.remove(best.city());
+            while (!remaining.isEmpty()) {
+                Insertion<T> best = null;
+
+                for (T candidate : remaining) {
+                    Insertion<T> ins = bestFeasibleInsertion(routeOrder, candidate);
+                    if (ins != null && (best == null || ins.deltaDistance() < best.deltaDistance())) best = ins;
+                }
+
+                if (best == null) break;
+
+                routeOrder.add(best.index(), best.city());
+                remaining.remove(best.city());
+            }
+
+            // Strong improvement step: relocate + global 2-opt, validity-preserving
+            RouteImprover.improveClosedValid(routeOrder, matrix, 8);
+
+            Route<T> result = RouteEvaluator.evaluate(routeOrder, matrix);
+
+            if (result.isValid()) {
+                if (bestValid == null || result.getTotalDistance() < bestValid.getTotalDistance()) {
+                    bestValid = result;
+                }
+            } else {
+                bestInvalid = chooseBetterInvalid(bestInvalid, result);
+            }
         }
 
-        // SAFETY: only run 2-opt if it's a real closed loop
-        if (routeOrder.size() >= 4 && routeOrder.get(0).equals(routeOrder.get(routeOrder.size() - 1))) {
-            Segment2Opt.optimizeByUrgentSegments(routeOrder, matrix);
+        if (bestValid != null) {
+            bestValid.setDebugLog("Valid route found successfully (optimized: relocate + global 2-opt).");
+            return bestValid;
         }
 
-        Route<T> finalRoute = RouteEvaluator.evaluate(routeOrder, matrix);
-        if (!remaining.isEmpty()) {
-            finalRoute.setDebugLog("Could not insert " + remaining.size() + " non-urgent city/cities without missing deadlines.");
-        } else {
-            finalRoute.setDebugLog(finalRoute.isValid() ? "Route complete." : "Route invalid after optimization.");
+        if (bestInvalid != null) {
+            bestInvalid.setDebugLog("No valid route found. Returning best invalid route found by the heuristic.");
+            return bestInvalid;
         }
-        return finalRoute;
+
+        return fail("Solver failed unexpectedly.");
+    }
+
+    private double safeTime(T a, T b) {
+        int i = matrix.getIndexOf(a);
+        int j = matrix.getIndexOf(b);
+        double t = matrix.getTime(i, j);
+        return Double.isNaN(t) ? Double.POSITIVE_INFINITY : t;
     }
 
     private double slackFromStart(T start, T city) {
-        int i = matrix.getIndexOf(start);
-        int j = matrix.getIndexOf(city);
-        if (i < 0 || j < 0) return Double.POSITIVE_INFINITY;
+        double t = safeTime(start, city);
+        return city.getDeadline() - t;
+    }
 
-        double travel = matrix.getTime(i, j);
-        if (Double.isNaN(travel)) travel = Double.POSITIVE_INFINITY;
-        return city.getDeadline() - travel;
+    private Insertion<T> bestFeasibleInsertion(List<T> routeOrder, T city) {
+        Insertion<T> best = null;
+
+        // Closed route: insert anywhere before last element (closing start)
+        for (int idx = 1; idx < routeOrder.size(); idx++) {
+            double delta = RouteEvaluator.deltaDistanceIfInsert(routeOrder, matrix, idx, city);
+            if (Double.isNaN(delta)) continue;
+
+            List<T> tmp = new ArrayList<>(routeOrder);
+            tmp.add(idx, city);
+
+            Route<T> evaluated = RouteEvaluator.evaluate(tmp, matrix);
+            if (!evaluated.isValid()) continue;
+
+            if (best == null || delta < best.deltaDistance()) {
+                best = new Insertion<>(idx, city, delta);
+            }
+        }
+
+        return best;
+    }
+
+    private Route<T> chooseBetterInvalid(Route<T> a, Route<T> b) {
+        if (a == null) return b;
+        if (b == null) return a;
+
+        // Simple tie-break: smaller totalTime is "less bad"
+        return b.getTotalTime() < a.getTotalTime() ? b : a;
+    }
+
+    private List<T> sortedCopy(List<T> src, Comparator<T> cmp) {
+        List<T> c = new ArrayList<>(src);
+        c.sort(cmp);
+        return c;
     }
 
     private Route<T> fail(String msg) {
@@ -94,27 +175,5 @@ public final class SlackInsertion2OptSolver<T extends City> implements Solver<T>
         Route<T> r = new Route<>(start);
         r.setDebugLog("SOLVER ERROR: " + msg);
         return r;
-    }
-
-    private Insertion<T> bestFeasibleInsertion(List<T> routeOrder, T city) {
-        Insertion<T> best = null;
-
-        // Don't insert at 0. Also don't insert after the last node (which is the closing start).
-        for (int idx = 1; idx < routeOrder.size(); idx++) {
-            // Extra safety: don't insert after last element; idx < size ensures that
-            double delta = RouteEvaluator.deltaDistanceIfInsert(routeOrder, matrix, idx, city);
-            if (Double.isNaN(delta)) continue;
-
-            List<T> temp = new ArrayList<>(routeOrder);
-            temp.add(idx, city);
-
-            Route<T> evaluated = RouteEvaluator.evaluate(temp, matrix);
-            if (!evaluated.isValid()) continue;
-
-            if (best == null || delta < best.deltaDistance()) {
-                best = new Insertion<>(idx, city, delta);
-            }
-        }
-        return best;
     }
 }
