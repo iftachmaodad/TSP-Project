@@ -2,35 +2,36 @@
 
 ## Project Title
 
-**Traveling Salesman Problem with Time Constraints**
+**Traveling Salesman Problem (TSP) with Time Constraints**
 
 ---
 
 ## Project Overview
 
-This project implements a solution framework for the **Traveling Salesman Problem (TSP)** with an optional **deadline (time constraint)** for visiting cities.
+This project implements a **flexible and extensible framework** for solving the **Traveling Salesman Problem (TSP)** with optional **time (deadline) constraints**.
 
-Unlike the classic TSP, where the goal is only to minimize total distance, this project also supports **real-world constraints**, such as:
+Unlike the classical TSP, which minimizes only total distance, this solution models **real-world routing considerations**, including:
 
-* Cities that must be visited before a certain time
-* Different distance calculation strategies (mathematical vs real road data)
-* Human-like decision logic (prioritizing urgent cities)
+* Cities that must be visited before a given deadline
+* Different distance/time calculation strategies
+* Realistic travel times using external map services
+* Solver logic that mimics **human decision-making** under urgency
 
-The project is written in **Java**, structured as a **Maven project**, and optionally integrates the **Google Distance Matrix API** for realistic travel times.
+The project is written in **Java (Java 21)**, structured as a **Maven project**, and optionally integrates the **Google Distance Matrix API**.
 
 ---
 
 ## Main Features
 
-* Generic city model with deadlines
+* **Generic city model** with optional deadlines
 * Support for multiple city types:
 
-  * **AirCity** – distance calculated mathematically (Haversine formula)
-  * **GroundCity** – distance and time retrieved via Google Maps API
-* Central **Matrix** class that stores distances and travel times
-* Automatic strategy selection (math vs API) using a registry
-* Route representation with arrival times and deadline validation
-* Extensible solver interface for different TSP algorithms
+  * **AirCity** – distance computed locally using the Haversine formula
+  * **GroundCity** – distance and travel time retrieved from Google Maps API
+* Central **Matrix<T>** component that stores distances and travel times
+* Automatic **strategy selection** (local math vs API) via a registry
+* **Route<T>** representation with arrival times and validity checking
+* **Generic solver interface** allowing multiple TSP algorithms
 
 ---
 
@@ -38,15 +39,33 @@ The project is written in **Java**, structured as a **Maven project**, and optio
 
 ```
 tspSolution/
-├── City.java
-├── AirCity.java
-├── GroundCity.java
-├── CityRegistry.java
-├── Matrix.java
-├── GoogleMapsService.java
-├── Route.java
-├── Solver.java
-├── Main.java
+├── ui/
+│   ├── TspApp.java
+│   ├── UiController.java
+│   └── MapViewPane.java
+├── domain/
+│   ├── City.java
+│   ├── AirCity.java
+│   ├── GroundCity.java
+│   ├── CityRegistry.java
+│   └── CalculationStrategy.java
+├── data/
+│   ├── Matrix.java
+│   └── GoogleMapsService.java
+├── solver/
+│   ├── Solver.java
+│   ├── SlackInsertionSolver.java
+│   ├── SlackInsertion2OptSolver.java
+│   ├── RouteEvaluator.java
+│   └── RouteImprover.java
+├── output/
+│   └── Route.java
+├── docs/
+│   ├── uml/
+│   │   ├── tsp_architecture.puml
+│   │   └── tsp_solver_flow.puml
+│   └── report/
+│       └── פרק_7_ארכיטקטורה.docx
 ├── pom.xml
 └── README.md
 ```
@@ -55,21 +74,24 @@ tspSolution/
 
 ## Core Design Decisions
 
-### City & Deadlines
+### City Model & Deadlines
 
-Each city may optionally have a **deadline**.
-A route becomes **invalid** if a city is visited after its deadline.
+Each city may optionally define a **deadline** (latest allowed arrival time).
 
-### Matrix
+* If a city has no deadline → it can be visited at any time
+* If a city is visited after its deadline → the route becomes **invalid**
 
-The `Matrix` class:
+This allows the solver to model **urgent vs non-urgent cities**.
 
-* Stores all cities
-* Builds distance and time matrices
-* Automatically decides how to populate itself:
+---
 
-  * Mathematical calculation for `AirCity`
-  * Google Maps API for `GroundCity`
+### Distance & Time Matrix (`Matrix<T>`)
+
+The `Matrix<T>` class is responsible for:
+
+* Storing all cities participating in the route
+* Holding distance and travel-time matrices
+* Managing data consistency and integrity
 
 Calling:
 
@@ -77,13 +99,24 @@ Calling:
 matrix.populateMatrix();
 ```
 
-will **always populate real values**, regardless of the strategy used.
+guarantees that **all distances and times are available**, regardless of how they were calculated.
+
+#### Strategy Handling
+
+The matrix does **not** decide how distances are calculated by itself.
+
+Instead:
+
+* `CityRegistry` maps each city type to a `CalculationStrategy`
+* `LOCAL_MATH` → distances computed locally
+* `API_REQUIRED` → distances fetched via Google Maps API
 
 ---
 
 ## Google Maps API Integration
 
-For `GroundCity`, distances and travel times are retrieved using the **Google Distance Matrix API**.
+For `GroundCity`, travel distance and duration are retrieved using the
+**Google Distance Matrix API**.
 
 ### Requirements
 
@@ -92,9 +125,9 @@ For `GroundCity`, distances and travel times are retrieved using the **Google Di
 * Billing enabled
 * API key
 
-The API key is **not hardcoded** and should be provided at runtime (recommended via environment variable).
+The API key is **never hardcoded**.
 
-Example:
+Recommended usage via environment variable:
 
 ```bash
 set GOOGLE_MAPS_API_KEY=YOUR_KEY
@@ -104,7 +137,7 @@ set GOOGLE_MAPS_API_KEY=YOUR_KEY
 
 ## Solver Architecture
 
-The project defines a generic solver interface:
+The project defines a **generic solver interface**:
 
 ```java
 public interface Solver<T extends City> {
@@ -112,35 +145,68 @@ public interface Solver<T extends City> {
 }
 ```
 
-This allows multiple solving strategies to be implemented later, such as:
+### Why Generics?
 
-* Greedy nearest-neighbor
-* Deadline-first (urgent cities)
-* Human-like heuristic routing
-* Hybrid approaches
-
----
-
-## Intended Solving Logic (High Level)
-
-The planned solving approach mimics how a **human driver** thinks:
-
-1. Identify cities with deadlines (urgent cities)
-2. Prioritize the city with the **smallest slack**
-
-   * Slack = deadline − estimated arrival time
-3. Between urgent stops, insert non-urgent cities if possible
-4. Continue until all cities are visited or no valid route exists
+* Allows the solver to work with **any City subtype**
+* Keeps the design flexible and type-safe
+* Matches the generic design of `Route<T>` and `Matrix<T>`
 
 ---
 
-## Technologies Used
+## Implemented Solving Approaches
 
-* Java 21
-* Maven
-* Google Maps Distance Matrix API
-* Eclipse IDE
-* Git / GitHub
+### Fast Solver (Slack Insertion)
+
+* Greedy heuristic
+* Prioritizes urgent cities
+* Builds a valid route quickly
+* Suitable for larger inputs
+
+### Optimized Solver (Slack + 2-Opt)
+
+* Starts with a feasible solution
+* Applies local improvements (2-opt, relocation)
+* Re-evaluates deadlines after each improvement
+* Slower but produces higher-quality routes
+
+---
+
+## High-Level Solving Logic (Human-Oriented)
+
+The solver follows a **human-like decision process**:
+
+1. Identify cities with deadlines
+2. Compute **slack time** for each city
+
+   ```
+   slack = deadline − estimated arrival time
+   ```
+3. Prioritize cities with the smallest slack
+4. Insert non-urgent cities when safe
+5. Validate route feasibility continuously
+
+If no valid route exists → the solver reports failure.
+
+---
+
+## UML Documentation
+
+The project includes **two UML diagrams** (written in PlantUML):
+
+1. **Top-Down Architecture Diagram**
+
+   * UI → Domain → Data → Solver → Output
+2. **Execution & Algorithm Flow Diagram**
+
+   * Fast vs Optimized solver execution paths
+
+Source files are located under:
+
+```
+docs/uml/
+```
+
+They can be regenerated using PlantUML.
 
 ---
 
@@ -149,25 +215,35 @@ The planned solving approach mimics how a **human driver** thinks:
 From the project root:
 
 ```bash
-mvn package
+mvn clean package
 mvn exec:java
 ```
 
-Make sure your API key is set if using `GroundCity`.
+If using `GroundCity`, ensure the API key is configured.
 
 ---
 
-## Notes
+## Version Control Notes
 
-* IDE files (`.metadata`, `.settings`, `bin`, `target`) are excluded via `.gitignore`
-* API keys are never committed
-* The project is designed to be **extensible**, not a single hard-coded solution
+* UML (`.puml`) files and report (`.docx`) **are committed**
+* API keys and IDE artifacts are excluded via `.gitignore`
+* The repository contains both **source code and documentation**
+
+---
+
+## Technologies Used
+
+* Java 21
+* Maven
+* JavaFX
+* Google Maps Distance Matrix API
+* PlantUML
+* Eclipse IDE
+* Git / GitHub
 
 ---
 
 ## Author
 
-Student project – Traveling Salesman Problem with deadlines
-Built as part of a guided research / programming assignment
-
----
+Student project – Traveling Salesman Problem with time constraints
+Developed as part of a guided research and software engineering assignment

@@ -1,0 +1,106 @@
+@startuml tsp_solver_flow
+title TSP Solver — Execution + Algorithm Flow (Fast vs Optimized)
+
+' ===== Global style (known-safe) =====
+skinparam backgroundColor white
+skinparam shadowing true
+skinparam ArrowColor #2B2B2B
+skinparam RoundCorner 14
+skinparam DefaultFontName "Segoe UI"
+skinparam DefaultFontSize 13
+
+start
+
+partition "UI / Controller (UiController)" #E8F4FF {
+  :Select Mode (AirCity / GroundCity);
+  :Add Cities (map click -> Add City);
+  :Select Start City;
+  :Select Solver (Fast / Optimized);
+  :Click Solve;
+}
+
+partition "Distance + Time Engine (Matrix)" #EAF7EA {
+  :Matrix.reset();
+  :matrix = Matrix.getInstance(type);
+  :matrix.addCity(..) for all cities;
+}
+
+partition "Fill distance/time matrix" #EAF7EA {
+  if (Mode requires API?) then (yes)
+    :Prompt for API key;
+    :Matrix.setGoogleMapsService(new GoogleMapsService(key));
+  endif
+
+  :ok = matrix.populateMatrix();
+  if (ok AND matrix.checkIntegrity()?) then (yes)
+    :distance[][] + time[][] ready;
+  else (no)
+    :Show error\n"Failed to populate matrix";
+    stop
+  endif
+}
+
+partition "Solver Selection" #FFF2E2 {
+  if (Fast selected?) then (Fast)
+    :solver = new SlackInsertionSolver(matrix);
+  else (Optimized)
+    :solver = new SlackInsertion2OptSolver(matrix);
+  endif
+}
+
+partition "Solve (Solver.solve(startCity))" #FFF2E2 {
+  :Split cities:\n- Urgent (has deadline)\n- Flexible (no deadline);
+
+  :Infeasible check (urgent):\nif time(start->U) > U.deadline => impossible;
+  if (Infeasible?) then (yes)
+    :Return Route(start)\nINVALID + reason;
+    stop
+  endif
+
+  if (Fast solver?) then (Fast)
+    :Sort urgent by slack from start;
+    :Insert urgent one-by-one (feasible);
+    if (Any deadline missed?) then (yes)
+      :Return INVALID + log;
+      stop
+    endif
+    :Greedy insert flexible cities\n(best feasible deltaDistance);
+    :Small improvement pass\n(relocate + 2-opt, few passes);
+    :Return Route (VALID);
+  else (Optimized)
+    :Generate urgent orderings:\n1) deadline\n2) slack\n3) travel time\n4) random shuffles;
+
+    :bestValid = null;\nbestInvalid = null;
+    while (More orderings?) is (yes)
+      :Pick next ordering;
+      :Evaluate urgent-only\n(RouteEvaluator);
+
+      if (Urgent-only valid?) then (yes)
+        :Greedy insert flexible cities;
+        :RouteImprover\n(relocate + global 2-opt);
+        if (Route valid?) then (yes)
+          :Update bestValid;
+        else (no)
+          :Update bestInvalid;
+        endif
+      else (no)
+        :Update bestInvalid;
+      endif
+    endwhile (no)
+
+    if (bestValid found?) then (yes)
+      :Return bestValid (VALID);
+    else (no)
+      :Return bestInvalid (INVALID);
+    endif
+  endif
+}
+
+partition "UI Output" #FCEBFF {
+  :UiController stores lastRoute;
+  :MapViewPane renders route path;
+  :Show report dialog\n(route.toString());
+  stop
+}
+
+@enduml

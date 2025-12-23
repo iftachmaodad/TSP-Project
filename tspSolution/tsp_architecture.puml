@@ -1,0 +1,190 @@
+@startuml tsp_architecture
+title TSP Solver — Top-Down Architecture (UI → Domain → Data → Solver → Output)
+
+' IMPORTANT: allows mixing class + component/rectangles in one diagram
+allowmixing
+
+' ===== Global style =====
+skinparam backgroundColor white
+skinparam shadowing true
+skinparam linetype ortho
+skinparam ArrowColor #2B2B2B
+skinparam ArrowThickness 1.2
+skinparam RoundCorner 14
+skinparam DefaultFontName "Segoe UI"
+skinparam DefaultFontSize 13
+
+top to bottom direction
+skinparam packageStyle rectangle
+skinparam packageBorderColor #2B2B2B
+skinparam packageBackgroundColor #FFFFFF
+
+skinparam rectangleBorderColor #2B2B2B
+skinparam componentBorderColor #2B2B2B
+skinparam databaseBorderColor #2B2B2B
+skinparam cloudBorderColor #2B2B2B
+skinparam nodeBorderColor #2B2B2B
+skinparam artifactBorderColor #2B2B2B
+skinparam classBorderColor #2B2B2B
+
+' ===== Color coding by stereotype =====
+skinparam rectangle<<UI>> BackgroundColor #E8F4FF
+skinparam class<<Domain>> BackgroundColor #F3F0FF
+skinparam database<<Data>> BackgroundColor #EAF7EA
+skinparam node<<Data>> BackgroundColor #EAF7EA
+skinparam component<<Solver>> BackgroundColor #FFF2E2
+skinparam cloud<<External>> BackgroundColor #FFECEC
+skinparam artifact<<Output>> BackgroundColor #FCEBFF
+
+actor "User" as user
+
+' =========================
+' UI Layer (JavaFX)
+' =========================
+package "UI Layer (JavaFX)" as P_UI #E8F4FF {
+  rectangle "TspApp\n(JavaFX Application)" as App <<UI>>
+  rectangle "UiController\n(orchestration)" as UIc <<UI>>
+  rectangle "MapViewPane\n(map render + click/pan/zoom)" as Map <<UI>>
+  rectangle "ReportDialog\n(Alert + last report viewer)" as ReportDlg <<UI>>
+  rectangle "UiController.createCity(...)\nReflection:\ngetConstructor(...)\nnewInstance(...)" as ReflectCreate <<UI>>
+
+  note right of UIc
+    Main responsibilities:
+    - select mode (AirCity/GroundCity)
+    - add/remove cities + select start
+    - choose solver (Fast/Optimized)
+    - reset + populate Matrix
+    - call solver.solve(start)
+    - render route + show report
+  end note
+}
+
+' =========================
+' Domain Model
+' =========================
+package "Domain Model" as P_DOM #F3F0FF {
+  class City <<Domain>>
+  class AirCity <<Domain>>
+  class GroundCity <<Domain>>
+  class CityRegistry <<Domain>>
+  enum CalculationStrategy <<Domain>> {
+    LOCAL_MATH
+    API_REQUIRED
+  }
+
+  City <|-- AirCity
+  City <|-- GroundCity
+  CityRegistry --> CalculationStrategy : strategy
+
+  note right of City
+    abstract
+    - id : String
+    - lon : double
+    - lat : double
+    - deadline : double
+    + hasDeadline()
+    + distance(City)
+    + time(City)
+  end note
+
+  note right of AirCity
+    LOCAL_MATH:
+    Haversine distance
+    time = distance / DRONE_SPEED
+  end note
+
+  note right of GroundCity
+    API_REQUIRED:
+    distance/time are not local
+    (NaN until Matrix filled by API)
+  end note
+}
+
+' =========================
+' Distance + Time Engine
+' =========================
+package "Distance + Time Engine" as P_DATA #EAF7EA {
+  database "Matrix<T>\n(singleton per type)\n- cities:Set\n- snapshot:List\n- distance[][]\n- time[][]\n+ reset()\n+ getInstance(type)\n+ addCity(city)\n+ populateMatrix()\n+ checkIntegrity()" as Matrix <<Data>>
+
+  node "GoogleMapsService\n(fillMatrix wrapper)\n(only when API_REQUIRED)" as GMS <<Data>>
+}
+
+' =========================
+' External Services
+' =========================
+package "External Services" as P_EXT #FFECEC {
+  cloud "Google Distance Matrix API\n(DRIVING distance + duration)" as API <<External>>
+}
+
+' =========================
+' Solving Engine
+' =========================
+package "Solving Engine" as P_SOL #FFF2E2 {
+  component "Solver<T>\n(interface)\nsolve(startCity)" as SolverI <<Solver>>
+
+  component "SlackInsertionSolver\nFAST heuristic" as SolverFast <<Solver>>
+  component "SlackInsertion2OptSolver\nOPTIMIZED heuristic\n(many urgent orderings)" as SolverOpt <<Solver>>
+
+  component "RouteEvaluator\norder → Route\n(check NaN + deadlines)" as Evaluator <<Solver>>
+  component "RouteImprover\nrelocate + 2-opt passes" as Improver <<Solver>>
+  component "Segment2Opt\n(optional)\n2-opt inside segments" as Seg2Opt <<Solver>>
+  component "Insertion<T>\n(record)\nindex + city + deltaDistance" as InsertionRec <<Solver>>
+
+  SolverI <|.. SolverFast
+  SolverI <|.. SolverOpt
+
+  SolverFast --> Evaluator
+  SolverFast ..> InsertionRec
+
+  SolverOpt --> Evaluator
+  SolverOpt --> Improver
+  Improver --> Evaluator : re-eval
+  SolverOpt ..> Seg2Opt
+  SolverOpt ..> InsertionRec
+}
+
+' =========================
+' Output
+' =========================
+package "Output" as P_OUT #FCEBFF {
+  artifact "Route<T>\n- path\n- arrivalTimes\n- totalDistance\n- totalTime\n- valid/invalid + log\n+ toString()" as RouteOut <<Output>>
+}
+
+' =========================
+' Relationships (short labels to avoid overlap)
+' =========================
+user --> App : launch
+App --> UIc : builds UI
+
+UIc --> Map : render
+UIc --> ReportDlg : report
+
+UIc --> ReflectCreate : createCity()
+ReflectCreate ..> City : ctor
+
+UIc --> Matrix : reset/get/add/populate
+Matrix --> CityRegistry : strategy
+Matrix --> GMS : if API
+GMS --> API : request
+
+UIc --> SolverI : solve(start)
+Evaluator --> Matrix : read
+Evaluator --> RouteOut : build
+UIc --> RouteOut : store/show
+
+' =========================
+' Layout rails (reduce overlap + keep centered-ish)
+' =========================
+App -[hidden]down-> UIc
+UIc -[hidden]down-> Matrix
+Matrix -[hidden]down-> SolverI
+SolverI -[hidden]down-> RouteOut
+
+P_UI -[hidden]down-> P_DOM
+P_DOM -[hidden]down-> P_DATA
+P_DATA -[hidden]down-> P_SOL
+P_SOL -[hidden]down-> P_OUT
+
+P_DATA -[hidden]right-> P_EXT
+
+@enduml
