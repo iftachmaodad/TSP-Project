@@ -1,4 +1,4 @@
-# TSP Solution – Traveling Salesman Problem with Time Constraints
+# TSP Solution — Traveling Salesman Problem with Time Constraints
 
 ## Project Title
 
@@ -8,136 +8,142 @@
 
 ## Project Overview
 
-This project implements a **flexible and extensible framework** for solving the **Traveling Salesman Problem (TSP)** with optional **time (deadline) constraints**.
+This project implements a modular and extensible solution for the **Traveling Salesman Problem (TSP)** with **optional time (deadline) constraints**.
 
-Unlike the classical TSP, which minimizes only total distance, this solution models **real-world routing considerations**, including:
+Unlike the classic TSP, where the goal is only to minimize total distance, this system supports **realistic routing constraints**, including:
 
-* Cities that must be visited before a given deadline
-* Different distance/time calculation strategies
-* Realistic travel times using external map services
-* Solver logic that mimics **human decision-making** under urgency
+* Cities that must be visited before a deadline
+* Different distance calculation strategies
+* Multiple solver heuristics (fast vs optimized)
+* Optional integration with real-world road data (Google Maps)
 
-The project is written in **Java (Java 21)**, structured as a **Maven project**, and optionally integrates the **Google Distance Matrix API**.
+The project is written in **Java 21**, uses **JavaFX** for the UI, follows a **top-down architecture**, and is built using **Maven**.
 
 ---
 
-## Main Features
+## Key Features
 
-* **Generic city model** with optional deadlines
-* Support for multiple city types:
+* Generic city model with optional deadlines
+* Two city types:
 
-  * **AirCity** – distance computed locally using the Haversine formula
-  * **GroundCity** – distance and travel time retrieved from Google Maps API
-* Central **Matrix<T>** component that stores distances and travel times
-* Automatic **strategy selection** (local math vs API) via a registry
-* **Route<T>** representation with arrival times and validity checking
-* **Generic solver interface** allowing multiple TSP algorithms
+  * **AirCity** — distance calculated locally using the Haversine formula
+  * **GroundCity** — distance and travel time retrieved from Google Maps API
+* Central distance & time matrix shared across solvers
+* Automatic strategy selection (local math vs API)
+* Route validation (arrival times + deadline checks)
+* Pluggable solver architecture using generics
+* JavaFX-based interactive UI
 
 ---
 
 ## Project Structure
 
 ```
-tspSolution/
-├── ui/
-│   ├── TspApp.java
-│   ├── UiController.java
-│   └── MapViewPane.java
-├── domain/
+src/main/java
+├── data
+│   ├── GoogleMapsService.java
+│   └── Matrix.java
+│
+├── domain
 │   ├── City.java
 │   ├── AirCity.java
 │   ├── GroundCity.java
-│   ├── CityRegistry.java
-│   └── CalculationStrategy.java
-├── data/
-│   ├── Matrix.java
-│   └── GoogleMapsService.java
-├── solver/
+│   └── CityRegistry.java
+│
+├── model
+│   └── Route.java
+│
+├── solver
 │   ├── Solver.java
 │   ├── SlackInsertionSolver.java
 │   ├── SlackInsertion2OptSolver.java
 │   ├── RouteEvaluator.java
-│   └── RouteImprover.java
-├── output/
-│   └── Route.java
-├── docs/
-│   ├── uml/
-│   │   ├── tsp_architecture.puml
-│   │   └── tsp_solver_flow.puml
-│   └── report/
-│       └── פרק_7_ארכיטקטורה.docx
-├── pom.xml
-└── README.md
+│   ├── RouteImprover.java
+│   └── Insertion.java
+│
+├── ui
+│   ├── TspApp.java
+│   ├── UiController.java
+│   └── MapViewPane.java
+│
+src/main/resources
+├── images
+└── app.css
 ```
 
 ---
 
-## Core Design Decisions
+## Architecture Overview
 
-### City Model & Deadlines
+The system is designed using a **top-down approach**, divided into logical layers:
 
-Each city may optionally define a **deadline** (latest allowed arrival time).
+1. **UI Layer (JavaFX)**
+   Handles user interaction, city creation, solver selection, and result visualization.
 
-* If a city has no deadline → it can be visited at any time
-* If a city is visited after its deadline → the route becomes **invalid**
+2. **Domain Layer**
+   Defines the city hierarchy, deadlines, and strategy selection.
 
-This allows the solver to model **urgent vs non-urgent cities**.
+3. **Data Layer**
+   Builds and stores distance/time matrices and communicates with external APIs when needed.
+
+4. **Solver Layer**
+   Contains interchangeable solving algorithms using a generic solver interface.
+
+5. **Output Model**
+   Represents the final route, arrival times, and validity status.
+
+Architecture and execution flow are documented using **PlantUML diagrams**:
+
+* `tsp_architecture.puml`
+* `tsp_solver_flow.puml`
 
 ---
 
-### Distance & Time Matrix (`Matrix<T>`)
+## City Model & Deadlines
 
-The `Matrix<T>` class is responsible for:
+Each city may optionally have a **deadline**.
 
-* Storing all cities participating in the route
-* Holding distance and travel-time matrices
-* Managing data consistency and integrity
+* A route is considered **invalid** if any city is visited after its deadline.
+* Deadline checks are performed during route evaluation.
+
+### City Types
+
+* **AirCity**
+
+  * Uses local mathematical distance (Haversine)
+  * Travel time = distance / constant speed
+
+* **GroundCity**
+
+  * Uses Google Distance Matrix API
+  * Distance & time retrieved dynamically
+
+---
+
+## Distance & Time Matrix
+
+The `Matrix` class:
+
+* Stores all cities
+* Maintains distance and time matrices
+* Automatically populates values based on city type
+* Uses Google Maps API **only when required**
 
 Calling:
 
 ```java
-matrix.populateMatrix();
+Matrix.getInstance(type).populateMatrix();
 ```
 
-guarantees that **all distances and times are available**, regardless of how they were calculated.
-
-#### Strategy Handling
-
-The matrix does **not** decide how distances are calculated by itself.
-
-Instead:
-
-* `CityRegistry` maps each city type to a `CalculationStrategy`
-* `LOCAL_MATH` → distances computed locally
-* `API_REQUIRED` → distances fetched via Google Maps API
-
----
-
-## Google Maps API Integration
-
-For `GroundCity`, travel distance and duration are retrieved using the
-**Google Distance Matrix API**.
-
-### Requirements
-
-* Google Cloud account
-* Distance Matrix API enabled
-* Billing enabled
-* API key
-
-The API key is **never hardcoded**.
-
-Recommended usage via environment variable:
-
-```bash
-set GOOGLE_MAPS_API_KEY=YOUR_KEY
-```
+Always results in valid distance and time values.
 
 ---
 
 ## Solver Architecture
 
-The project defines a **generic solver interface**:
+The solver layer is **generic and extensible**.
+
+### Solver Interface
 
 ```java
 public interface Solver<T extends City> {
@@ -145,68 +151,52 @@ public interface Solver<T extends City> {
 }
 ```
 
-### Why Generics?
+### Implemented Solvers
 
-* Allows the solver to work with **any City subtype**
-* Keeps the design flexible and type-safe
-* Matches the generic design of `Route<T>` and `Matrix<T>`
+* **SlackInsertionSolver**
 
----
+  * Fast heuristic
+  * Prioritizes urgent cities (small slack)
 
-## Implemented Solving Approaches
+* **SlackInsertion2OptSolver**
 
-### Fast Solver (Slack Insertion)
-
-* Greedy heuristic
-* Prioritizes urgent cities
-* Builds a valid route quickly
-* Suitable for larger inputs
-
-### Optimized Solver (Slack + 2-Opt)
-
-* Starts with a feasible solution
-* Applies local improvements (2-opt, relocation)
-* Re-evaluates deadlines after each improvement
-* Slower but produces higher-quality routes
+  * Optimized version
+  * Applies route improvement (2-opt, relocation)
 
 ---
 
-## High-Level Solving Logic (Human-Oriented)
+## Intended Solving Logic (High Level)
 
-The solver follows a **human-like decision process**:
+The solver mimics human decision-making:
 
-1. Identify cities with deadlines
-2. Compute **slack time** for each city
+1. Identify urgent cities (with deadlines)
+2. Compute slack:
 
    ```
    slack = deadline − estimated arrival time
    ```
-3. Prioritize cities with the smallest slack
-4. Insert non-urgent cities when safe
-5. Validate route feasibility continuously
-
-If no valid route exists → the solver reports failure.
+3. Visit cities with the smallest slack first
+4. Insert non-urgent cities when possible
+5. Validate route constraints continuously
 
 ---
 
-## UML Documentation
+## Google Maps API Integration
 
-The project includes **two UML diagrams** (written in PlantUML):
+Used **only for GroundCity** instances.
 
-1. **Top-Down Architecture Diagram**
+### Requirements
 
-   * UI → Domain → Data → Solver → Output
-2. **Execution & Algorithm Flow Diagram**
+* Google Cloud account
+* Distance Matrix API enabled
+* Billing enabled
+* API key (not hardcoded)
 
-   * Fast vs Optimized solver execution paths
+Recommended usage:
 
-Source files are located under:
-
+```bash
+set GOOGLE_MAPS_API_KEY=YOUR_API_KEY
 ```
-docs/uml/
-```
-
-They can be regenerated using PlantUML.
 
 ---
 
@@ -215,35 +205,28 @@ They can be regenerated using PlantUML.
 From the project root:
 
 ```bash
-mvn clean package
-mvn exec:java
+mvn clean javafx:run
 ```
 
-If using `GroundCity`, ensure the API key is configured.
+Make sure:
+
+* Java 21 is installed
+* API key is set if using GroundCity
 
 ---
 
-## Version Control Notes
+## Git & Project Hygiene
 
-* UML (`.puml`) files and report (`.docx`) **are committed**
-* API keys and IDE artifacts are excluded via `.gitignore`
-* The repository contains both **source code and documentation**
-
----
-
-## Technologies Used
-
-* Java 21
-* Maven
-* JavaFX
-* Google Maps Distance Matrix API
-* PlantUML
-* Eclipse IDE
-* Git / GitHub
+* `target/`, IDE files, and API keys are excluded via `.gitignore`
+* UML diagrams (`.puml`) are committed
+* Project is structured for future extension
 
 ---
 
 ## Author
 
-Student project – Traveling Salesman Problem with time constraints
-Developed as part of a guided research and software engineering assignment
+Student project
+Traveling Salesman Problem with Time Constraints
+Built as part of an academic programming & research assignment
+
+---
