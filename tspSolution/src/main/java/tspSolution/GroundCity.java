@@ -8,7 +8,7 @@ public class GroundCity extends City{
 	public GroundCity(double x, double y) {this(null, x, y, NO_DEADLINE, null);}
 	public GroundCity(double x, double y, double deadline) {this(null, x, y, deadline, null);}
 	public GroundCity(String ID, double x, double y) {this(ID, x, y, NO_DEADLINE, null);}
-	
+	public GroundCity(String ID, double x, double y, double deadline) {this(ID, x, y, deadline, null);}
 	
 	public GroundCity(String ID,double x, double y, double deadline, String address) {
 		super(ID, x, y, deadline);
