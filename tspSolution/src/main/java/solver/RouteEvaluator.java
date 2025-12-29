@@ -1,6 +1,10 @@
-package tspSolution;
+package solver;
 
 import java.util.List;
+
+import data.Matrix;
+import domain.City;
+import model.Route;
 
 public final class RouteEvaluator {
     private RouteEvaluator() {}

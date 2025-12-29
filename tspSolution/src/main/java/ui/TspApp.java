@@ -1,4 +1,4 @@
-package tspSolution;
+package ui;
 
 import javafx.application.Application;
 import javafx.scene.Scene;

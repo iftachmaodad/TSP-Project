@@ -1,4 +1,4 @@
-package tspSolution;
+package domain;
 
 public class GroundCity extends City{
 	// --- Properties ---

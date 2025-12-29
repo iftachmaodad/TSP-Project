@@ -1,8 +1,10 @@
-package tspSolution;
+package model;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import domain.City;
 
 public final class Route<T extends City> {
     // --- Properties ---

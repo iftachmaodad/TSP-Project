@@ -1,6 +1,9 @@
-package tspSolution;
+package data;
 
 import java.util.*;
+
+import domain.City;
+import domain.CityRegistry;
 
 public final class Matrix<T extends City> {
     // --- Singleton Instance ---

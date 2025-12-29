@@ -1,4 +1,4 @@
-package tspSolution;
+package domain;
 
 public class AirCity extends City{
     // Constant: Average Drone Speed (~60 KM/h)

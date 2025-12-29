@@ -1,4 +1,4 @@
-package tspSolution;
+package data;
 
 import com.google.maps.DistanceMatrixApi;
 import com.google.maps.GeoApiContext;
@@ -8,6 +8,9 @@ import com.google.maps.model.DistanceMatrixElementStatus;
 import com.google.maps.model.DistanceMatrixRow;
 import com.google.maps.model.LatLng;
 import com.google.maps.model.TravelMode;
+
+import domain.City;
+import domain.CityRegistry;
 
 import java.util.List;
 

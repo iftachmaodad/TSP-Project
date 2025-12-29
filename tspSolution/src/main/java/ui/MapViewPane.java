@@ -1,4 +1,4 @@
-package tspSolution;
+package ui;
 
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
@@ -11,6 +11,8 @@ import javafx.scene.paint.Color;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
+
+import domain.City;
 
 public final class MapViewPane extends StackPane {
 

@@ -1,4 +1,7 @@
-package tspSolution;
+package solver;
+
+import domain.City;
+import model.Route;
 
 public interface Solver<T extends City> {
     /**

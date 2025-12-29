@@ -19,7 +19,6 @@
     </properties>
 
     <dependencies>
-        <!-- JavaFX -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
@@ -31,14 +30,12 @@
             <version>${javafx.version}</version>
         </dependency>
 
-        <!-- Google Maps -->
         <dependency>
             <groupId>com.google.maps</groupId>
             <artifactId>google-maps-services</artifactId>
             <version>${google.maps.version}</version>
         </dependency>
 
-        <!-- Helpful explicit deps -->
         <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
@@ -72,7 +69,7 @@
                 <artifactId>javafx-maven-plugin</artifactId>
                 <version>0.0.8</version>
                 <configuration>
-                    <mainClass>tspSolution.TspApp</mainClass>
+                    <mainClass>ui.TspApp</mainClass>
                 </configuration>
             </plugin>
         </plugins>

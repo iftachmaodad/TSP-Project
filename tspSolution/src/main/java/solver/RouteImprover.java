@@ -1,7 +1,11 @@
-package tspSolution;
+package solver;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import data.Matrix;
+import domain.City;
+import model.Route;
 
 public final class RouteImprover {
     private RouteImprover() {}

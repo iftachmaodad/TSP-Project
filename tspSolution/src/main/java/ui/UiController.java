@@ -1,4 +1,4 @@
-package tspSolution;
+package ui;
 
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -6,10 +6,21 @@ import javafx.geometry.Insets;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import model.Route;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
+
+import domain.City;
+import domain.CityRegistry;
+
+import data.Matrix;
+import data.GoogleMapsService;
+
+import solver.Solver;
+import solver.SlackInsertionSolver;
+import solver.SlackInsertion2OptSolver;
 
 public final class UiController {
 
@@ -181,7 +192,6 @@ public final class UiController {
 
             coordLabel.setText(String.format("Selected: lon=%.6f  lat=%.6f", lon, lat));
 
-            // ✅ ensure marker appears instantly
             mapPane.setPendingMarker(lon, lat);
         });
 

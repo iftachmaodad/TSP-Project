@@ -1,10 +1,14 @@
-package tspSolution;
+package solver;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
+
+import data.Matrix;
+import domain.City;
+import model.Route;
 
 public final class SlackInsertion2OptSolver<T extends City> implements Solver<T> {
 
