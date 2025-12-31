@@ -29,11 +29,11 @@ public final class MapViewPane extends StackPane {
     private Double pendingLon = null;
     private Double pendingLat = null;
 
-    // ---- World size in pixels (fixed) ----
+    // ---- World size in pixels ----
     private double worldW = 2048;
     private double worldH = 1024;
 
-    // ---- Camera (world pixels) ----
+    // ---- Camera ----
     // camX/camY = center of view in world pixels
     private double camX = worldW / 2.0;
     private double camY = worldH / 2.0;
@@ -137,7 +137,7 @@ public final class MapViewPane extends StackPane {
 
         setOnMouseReleased(e -> panning = false);
 
-        // Click to set pending marker (left click, NOT shift, NOT dragged)
+        // Click to set pending marker
         setOnMouseClicked(e -> {
             if (e.getButton() != MouseButton.PRIMARY) return;
             if (e.isShiftDown()) return;
@@ -391,7 +391,7 @@ public final class MapViewPane extends StackPane {
             g.strokeOval(x - (r + 6), y - (r + 6), (r + 6) * 2, (r + 6) * 2);
         }
 
-        // label (no emoji dependency)
+        // label
         if (showLabels) {
             String label = c.getID();
             if (isStart) label = "S " + label;
@@ -421,7 +421,7 @@ public final class MapViewPane extends StackPane {
         return topLeftY + sy / zoom;
     }
 
-    // World -> Screen (with wrap closest-to-prevX for nice route lines)
+    // World -> Screen
     private double[] worldToScreen(double wx, double wy, double viewW, double viewH, double prevScreenX) {
         double viewWorldW = viewW / zoom;
         double viewWorldH = viewH / zoom;
