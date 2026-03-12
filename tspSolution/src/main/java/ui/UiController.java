@@ -1,13 +1,9 @@
 package ui;
 
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
-import model.Route;
-
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,18 +12,15 @@ import domain.City;
 import domain.CityRegistry;
 
 import data.Matrix;
-import data.GoogleMapsService;
-
-import solver.Solver;
-import solver.SlackInsertionSolver;
-import solver.SlackInsertion2OptSolver;
+import model.Route;
 
 public final class UiController {
 
     private final BorderPane root = new BorderPane();
     private final MapViewPane mapPane = new MapViewPane();
 
-    private final ObservableList<City> cities = FXCollections.observableArrayList();
+    private final ApplicationState state = new ApplicationState();
+    private final TspCoordinator coordinator = new TspCoordinator();
 
     private final ComboBox<Class<? extends City>> modeBox = new ComboBox<>();
     private final ComboBox<String> solverBox = new ComboBox<>();
@@ -37,7 +30,6 @@ public final class UiController {
     private final Label coordLabel = new Label("Left-click = select. Shift+Drag = pan. Scroll = zoom.");
 
     private final Button showReportBtn = new Button("📄 Show Last Report");
-    private Route<? extends City> lastRoute = null;
 
     private double pendingLon = Double.NaN;
     private double pendingLat = Double.NaN;
@@ -127,10 +119,10 @@ public final class UiController {
 
         showReportBtn.setDisable(true);
         showReportBtn.setOnAction(e -> {
-            if (lastRoute != null) alert("Last Report", lastRoute.toString());
+            if (state.getLastRoute() != null) alert("Last Report", state.getLastRoute().report());
         });
 
-        ListView<City> cityListView = new ListView<>(cities);
+        ListView<City> cityListView = new ListView<>(state.getCities());
         cityListView.setPrefHeight(240);
 
         addBtn.setOnAction(e -> addCityFromPendingClick());
@@ -139,11 +131,11 @@ public final class UiController {
             City sel = cityListView.getSelectionModel().getSelectedItem();
             if (sel == null) return;
 
-            cities.remove(sel);
+            state.getCities().remove(sel);
             clearSolutionOnly();
 
             refreshStartBox();
-            mapPane.setCities(new ArrayList<>(cities));
+            mapPane.setCities(new ArrayList<>(state.getCities()));
             mapPane.setStartCity(startBox.getValue());
         });
 
@@ -231,17 +223,17 @@ public final class UiController {
             return;
         }
 
-        if (cities.contains(city)) {
+        if (state.getCities().contains(city)) {
             alert("Duplicate", "City with same coordinates already exists.");
             return;
         }
 
-        cities.add(city);
+        state.getCities().add(city);
 
         clearSolutionOnly();
         refreshStartBox();
 
-        mapPane.setCities(new ArrayList<>(cities));
+        mapPane.setCities(new ArrayList<>(state.getCities()));
         mapPane.setStartCity(startBox.getValue());
 
         pendingLon = Double.NaN;
@@ -254,7 +246,7 @@ public final class UiController {
         Class<? extends City> type = modeBox.getValue();
         City start = startBox.getValue();
 
-        if (type == null || start == null || cities.size() < 2) {
+        if (type == null || start == null || state.getCities().size() < 2) {
             alert("Invalid input", "Choose mode, start city, and add at least 2 cities.");
             return;
         }
@@ -264,22 +256,10 @@ public final class UiController {
     }
 
     private <T extends City> void solveNowTyped(Class<T> type, City rawStart) {
-        if (!type.isInstance(rawStart)) {
-            alert("Type mismatch", "Start city is not of selected type.");
-            return;
-        }
-
+        String apiKey = null;
         Matrix<T> matrix = Matrix.getInstance(type);
 
-        for (City c : cities) {
-            if (!type.isInstance(c)) {
-                alert("Type mismatch", "All cities must match selected mode.");
-                return;
-            }
-            matrix.addCity(type.cast(c));
-        }
-
-        if (matrix.requiresApi() && !Matrix.hasGoogleService()) {
+        if (matrix.requiresApi() && !Matrix.hasDataProvider()) {
             TextInputDialog d = new TextInputDialog();
             d.setTitle("Google API Key");
             d.setHeaderText("API required for this city type");
@@ -287,45 +267,46 @@ public final class UiController {
 
             var res = d.showAndWait();
             if (res.isEmpty() || res.get().isBlank()) return;
-
-            Matrix.setGoogleMapsService(new GoogleMapsService(res.get().trim()));
+            apiKey = res.get().trim();
         }
 
-        if (!matrix.populateMatrix() || !matrix.checkIntegrity()) {
-            alert("Matrix Error", "Failed to populate matrix.");
-            return;
+        try {
+            Route<T> route = coordinator.solve(
+                    new ArrayList<>(state.getCities()),
+                    type,
+                    rawStart,
+                    solverBox.getValue(),
+                    apiKey
+            );
+
+            state.setLastRoute(new ApplicationState.RouteSnapshot(route.isValid(), route.toString()));
+            showReportBtn.setDisable(false);
+
+            mapPane.setStartCity(type.cast(rawStart));
+
+            List<City> draw = new ArrayList<>();
+            for (T c : route.getPath()) draw.add(c);
+            mapPane.setRoute(draw);
+
+            alert(route.isValid() ? "Solved (VALID)" : "Solved (INVALID)", route.toString());
+        } catch (IllegalArgumentException e) {
+            alert("Invalid input", e.getMessage());
+        } catch (IllegalStateException e) {
+            alert("Matrix Error", e.getMessage());
         }
-
-        Solver<T> solver =
-                (solverBox.getValue() != null && solverBox.getValue().startsWith("Fast"))
-                        ? new SlackInsertionSolver<>(matrix)
-                        : new SlackInsertion2OptSolver<>(matrix);
-
-        Route<T> route = solver.solve(type.cast(rawStart));
-
-        lastRoute = route;
-        showReportBtn.setDisable(false);
-
-        mapPane.setStartCity(type.cast(rawStart));
-
-        List<City> draw = new ArrayList<>();
-        for (T c : route.getPath()) draw.add(c);
-        mapPane.setRoute(draw);
-
-        alert(route.isValid() ? "Solved (VALID)" : "Solved (INVALID)", route.toString());
     }
 
     private void refreshStartBox() {
         City current = startBox.getValue();
-        startBox.getItems().setAll(cities);
+        startBox.getItems().setAll(state.getCities());
 
-        if (cities.isEmpty()) {
+        if (state.getCities().isEmpty()) {
             startBox.setValue(null);
             mapPane.setStartCity(null);
             return;
         }
 
-        if (current != null && cities.contains(current)) {
+        if (current != null && state.getCities().contains(current)) {
             startBox.setValue(current);
             return;
         }
@@ -334,14 +315,14 @@ public final class UiController {
     }
 
     private void clearSolutionOnly() {
-        lastRoute = null;
+        state.clearRoute();
         showReportBtn.setDisable(true);
         mapPane.setRoute(null);
     }
 
     private void clearAll() {
-        cities.clear();
-        lastRoute = null;
+        state.getCities().clear();
+        state.clearRoute();
         showReportBtn.setDisable(true);
 
         startBox.getItems().clear();

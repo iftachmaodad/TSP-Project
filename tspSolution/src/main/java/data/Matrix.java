@@ -11,7 +11,7 @@ public final class Matrix<T extends City> {
     private final Class<T> type;
 
     // --- API Instance ---
-    private static GoogleMapsService googleService = null;
+    private static MatrixDataProvider dataProvider = null;
 
     // --- Properties ---
     private final Set<T> cities = new LinkedHashSet<>();
@@ -57,7 +57,8 @@ public final class Matrix<T extends City> {
     }
 
     // --- Methods ---
-    public static boolean hasGoogleService() { return googleService != null; }
+    public static boolean hasDataProvider() { return dataProvider != null; }
+    public static boolean hasGoogleService() { return hasDataProvider(); }
     public boolean requiresApi() { return CityRegistry.getStrategy(this.type) == CityRegistry.CalculationStrategy.API_REQUIRED; }
 
     public void addCity(T city) {
@@ -139,14 +140,14 @@ public final class Matrix<T extends City> {
     }
 
     private boolean populateViaAPI() {
-        if (googleService == null) {
-            System.out.println("ERROR: GoogleMapsService is not set. Call Matrix.setGoogleMapsService(...) first.");
+        if (dataProvider == null) {
+            System.out.println("ERROR: MatrixDataProvider is not set. Call Matrix.setDataProvider(...) first.");
             return false;
         }
 
         if (cityListSnapshot.isEmpty()) return false;
 
-        boolean ok = googleService.fillMatrix(this);
+        boolean ok = dataProvider.fillMatrix(this);
         if (!ok) {
             System.out.println("ERROR: GoogleMapsService failed to fill matrix.");
             return false;
@@ -200,7 +201,8 @@ public final class Matrix<T extends City> {
     }
 
     // --- Setters ---
-    public static void setGoogleMapsService(GoogleMapsService service) { googleService = service; }
+    public static void setDataProvider(MatrixDataProvider provider) { dataProvider = provider; }
+    public static void setGoogleMapsService(GoogleMapsService service) { setDataProvider(service); }
 
     // --- Getters ---
     public int size() { return cities.size(); }

@@ -14,7 +14,7 @@ import domain.CityRegistry;
 
 import java.util.List;
 
-public class GoogleMapsService {
+public class GoogleMapsService implements MatrixDataProvider {
     // --- Properties ---
     private final GeoApiContext context;
 
@@ -28,6 +28,7 @@ public class GoogleMapsService {
     // --- Methods ---
     public void shutdown() { context.shutdown(); }
 
+    @Override
     public boolean fillMatrix(Matrix<?> matrix) {
         if (matrix == null) return false;
         if (matrix.getCities() == null || matrix.getCities().isEmpty()) return false;
