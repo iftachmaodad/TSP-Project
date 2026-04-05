@@ -1,178 +1,161 @@
 package solver;
 
+import data.Matrix;
+import domain.City;
+import model.Route;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 
-import data.Matrix;
-import domain.City;
-import model.Route;
-
+/**
+ * Slack-insertion heuristic with multi-start and local search — optimised
+ * variant.
+ *
+ * <h3>Algorithm</h3>
+ * <ol>
+ *   <li><strong>Partition</strong> cities into <em>urgent</em> (deadline) and
+ *       <em>flexible</em> (no deadline).</li>
+ *   <li><strong>Fast-fail</strong> if any urgent city is unreachable directly
+ *       from the start.</li>
+ *   <li><strong>Generate orderings</strong> of the urgent cities:
+ *       <ul>
+ *         <li>Sorted by earliest deadline.</li>
+ *         <li>Sorted by tightest slack from start.</li>
+ *         <li>Sorted by nearest travel time from start.</li>
+ *         <li>{@value #RANDOM_TRIES} random shuffles.</li>
+ *       </ul>
+ *   </li>
+ *   <li>For each ordering:
+ *       <ol type="a">
+ *         <li>Build {@code [start, urgent…, start]} and evaluate.</li>
+ *         <li>If valid, greedily insert flexible cities.</li>
+ *         <li>Apply {@value #IMPROVEMENT_PASSES} passes of relocate + 2-opt.</li>
+ *         <li>Track the best valid route across all orderings.</li>
+ *       </ol>
+ *   </li>
+ *   <li>Return the best valid route, or the best invalid route if none exists.</li>
+ * </ol>
+ *
+ * <p>For a single-pass, faster variant see {@link SlackInsertionSolver}.
+ *
+ * @param <T> the concrete city subtype
+ */
 public final class SlackInsertion2OptSolver<T extends City> implements Solver<T> {
 
-    private final Matrix<T> matrix;
-    private static final int RANDOM_TRIES = 25;
+    private static final int RANDOM_TRIES       = 25;
+    private static final int IMPROVEMENT_PASSES = 8;
 
+    private final Matrix<T> matrix;
+
+    /**
+     * @param matrix pre-populated distance/time matrix
+     * @throws IllegalArgumentException if {@code matrix} is {@code null}
+     */
     public SlackInsertion2OptSolver(Matrix<T> matrix) {
-        if (matrix == null) throw new IllegalArgumentException("Matrix cannot be null");
+        if (matrix == null) throw new IllegalArgumentException("Matrix cannot be null.");
         this.matrix = matrix;
     }
 
     @Override
     public Route<T> solve(T startCity) {
-        if (startCity == null) throw new IllegalArgumentException("Start city cannot be null");
-        if (!matrix.getCities().contains(startCity)) return fail("Start city is not inside matrix.");
-
+        if (startCity == null) {
+            throw new IllegalArgumentException("Start city cannot be null.");
+        }
+        if (!matrix.getCities().contains(startCity)) {
+            return SolverUtils.fail(matrix,
+                    "Start city '" + startCity.getID() + "' is not in the matrix.");
+        }
         if (!matrix.checkIntegrity()) {
-            if (!matrix.populateMatrix() || !matrix.checkIntegrity())
-                return fail("Matrix could not be populated.");
-        }
-
-        List<T> urgent = new ArrayList<>();
-        List<T> flexible = new ArrayList<>();
-
-        for (T c : matrix.getCities()) {
-            if (c.equals(startCity)) continue;
-            if (c.hasDeadline()) urgent.add(c);
-            else flexible.add(c);
-        }
-
-        // Infeasible instance check (must mark INVALID, not VALID).
-        for (T u : urgent) {
-            int i = matrix.getIndexOf(startCity);
-            int j = matrix.getIndexOf(u);
-            double direct = matrix.getTime(i, j);
-
-            if (!Double.isNaN(direct) && direct > u.getDeadline()) {
-                Route<T> r = new Route<>(startCity);
-                r.invalidate("No valid route: direct travel to urgent city " + u.getID() + " already misses its deadline.");
-                return r;
+            if (!matrix.populateMatrix() || !matrix.checkIntegrity()) {
+                return SolverUtils.fail(matrix, "Matrix could not be populated.");
             }
         }
 
-        List<List<T>> urgentOrderings = new ArrayList<>();
-
-        urgentOrderings.add(sortedCopy(urgent, Comparator.comparingDouble(City::getDeadline)));
-        urgentOrderings.add(sortedCopy(urgent, Comparator.comparingDouble(u -> slackFromStart(startCity, u))));
-        urgentOrderings.add(sortedCopy(urgent, Comparator.comparingDouble(u -> safeTime(startCity, u))));
-
-        Random rnd = new Random();
-        for (int i = 0; i < RANDOM_TRIES; i++) {
-            List<T> shuf = new ArrayList<>(urgent);
-            Collections.shuffle(shuf, rnd);
-            urgentOrderings.add(shuf);
+        // ── 1. Partition ──────────────────────────────────────────────────────
+        List<T> urgent   = new ArrayList<>();
+        List<T> flexible = new ArrayList<>();
+        for (T c : matrix.getCities()) {
+            if (c.equals(startCity)) continue;
+            (c.hasDeadline() ? urgent : flexible).add(c);
         }
 
-        Route<T> bestValid = null;
+        // ── 2. Fast-fail ──────────────────────────────────────────────────────
+        T infeasible = SolverUtils.findInfeasibleUrgent(matrix, startCity, urgent);
+        if (infeasible != null) {
+            Route<T> r = new Route<>(startCity);
+            r.invalidate("Infeasible: direct travel to '"
+                    + infeasible.getID() + "' already exceeds its deadline.");
+            return r;
+        }
+
+        // ── 3. Build orderings ────────────────────────────────────────────────
+        List<List<T>> orderings = new ArrayList<>(3 + RANDOM_TRIES);
+
+        orderings.add(SolverUtils.sortedCopy(urgent,
+                Comparator.comparingDouble(City::getDeadline)));
+        orderings.add(SolverUtils.sortedCopy(urgent,
+                Comparator.comparingDouble(
+                        u -> SolverUtils.slackFromStart(matrix, startCity, u))));
+        orderings.add(SolverUtils.sortedCopy(urgent,
+                Comparator.comparingDouble(
+                        u -> SolverUtils.safeTime(matrix, startCity, u))));
+
+        Random rng = new Random();
+        for (int i = 0; i < RANDOM_TRIES; i++) {
+            List<T> shuffled = new ArrayList<>(urgent);
+            Collections.shuffle(shuffled, rng);
+            orderings.add(shuffled);
+        }
+
+        // ── 4. Multi-start search ─────────────────────────────────────────────
+        Route<T> bestValid   = null;
         Route<T> bestInvalid = null;
 
-        for (List<T> urgentOrder : urgentOrderings) {
+        for (List<T> urgentOrder : orderings) {
             List<T> routeOrder = new ArrayList<>();
             routeOrder.add(startCity);
             routeOrder.addAll(urgentOrder);
             routeOrder.add(startCity);
 
-            Route<T> urgentOnly = RouteEvaluator.evaluate(routeOrder, matrix);
-            if (!urgentOnly.isValid()) {
-                bestInvalid = chooseBetterInvalid(bestInvalid, urgentOnly);
+            // Check that the urgent-cities-only sub-route is valid.
+            if (!RouteEvaluator.evaluate(routeOrder, matrix).isValid()) {
+                bestInvalid = SolverUtils.chooseBetterInvalid(
+                        bestInvalid,
+                        RouteEvaluator.evaluate(routeOrder, matrix));
                 continue;
             }
 
-            List<T> remaining = new ArrayList<>(flexible);
-
-            while (!remaining.isEmpty()) {
-                Insertion<T> best = null;
-
-                for (T candidate : remaining) {
-                    Insertion<T> ins = bestFeasibleInsertion(routeOrder, candidate);
-                    if (ins != null && (best == null || ins.deltaDistance() < best.deltaDistance())) best = ins;
-                }
-
-                if (best == null) break;
-
-                routeOrder.add(best.index(), best.city());
-                remaining.remove(best.city());
-            }
-
-            RouteImprover.improveClosedValid(routeOrder, matrix, 8);
+            // Insert flexible cities and improve.
+            SolverUtils.greedyInsertAll(routeOrder, matrix, new ArrayList<>(flexible));
+            RouteImprover.improveClosedValid(routeOrder, matrix, IMPROVEMENT_PASSES);
 
             Route<T> result = RouteEvaluator.evaluate(routeOrder, matrix);
-
             if (result.isValid()) {
-                if (bestValid == null || result.getTotalDistance() < bestValid.getTotalDistance()) {
+                if (bestValid == null
+                        || result.getTotalDistance() < bestValid.getTotalDistance()) {
                     bestValid = result;
                 }
             } else {
-                bestInvalid = chooseBetterInvalid(bestInvalid, result);
+                bestInvalid = SolverUtils.chooseBetterInvalid(bestInvalid, result);
             }
         }
 
+        // ── 5. Return result ──────────────────────────────────────────────────
         if (bestValid != null) {
-            bestValid.setDebugLog("Valid route found successfully (optimized: relocate + global 2-opt).");
+            bestValid.setDebugLog(
+                    "Valid route found (multi-start slack-insertion + 2-opt, "
+                    + (3 + RANDOM_TRIES) + " orderings tried).");
             return bestValid;
         }
-
         if (bestInvalid != null) {
-            bestInvalid.invalidate("No valid route found. Returning best invalid route found by the heuristic.");
+            bestInvalid.invalidate(
+                    "No valid route found after " + (3 + RANDOM_TRIES)
+                    + " orderings. Returning best partial result.");
             return bestInvalid;
         }
-
-        return fail("Solver failed unexpectedly.");
-    }
-
-    private double safeTime(T a, T b) {
-        int i = matrix.getIndexOf(a);
-        int j = matrix.getIndexOf(b);
-        double t = matrix.getTime(i, j);
-        return Double.isNaN(t) ? Double.POSITIVE_INFINITY : t;
-    }
-
-    private double slackFromStart(T start, T city) {
-        double t = safeTime(start, city);
-        return city.getDeadline() - t;
-    }
-
-    private Insertion<T> bestFeasibleInsertion(List<T> routeOrder, T city) {
-        Insertion<T> best = null;
-
-        for (int idx = 1; idx < routeOrder.size(); idx++) {
-            double delta = RouteEvaluator.deltaDistanceIfInsert(routeOrder, matrix, idx, city);
-            if (Double.isNaN(delta)) continue;
-
-            List<T> tmp = new ArrayList<>(routeOrder);
-            tmp.add(idx, city);
-
-            Route<T> evaluated = RouteEvaluator.evaluate(tmp, matrix);
-            if (!evaluated.isValid()) continue;
-
-            if (best == null || delta < best.deltaDistance()) {
-                best = new Insertion<>(idx, city, delta);
-            }
-        }
-
-        return best;
-    }
-
-    private Route<T> chooseBetterInvalid(Route<T> a, Route<T> b) {
-        if (a == null) return b;
-        if (b == null) return a;
-        return b.getTotalTime() < a.getTotalTime() ? b : a;
-    }
-
-    private List<T> sortedCopy(List<T> src, Comparator<T> cmp) {
-        List<T> c = new ArrayList<>(src);
-        c.sort(cmp);
-        return c;
-    }
-
-    private Route<T> fail(String msg) {
-        List<T> cities = matrix.getCities();
-        if (cities.isEmpty()) throw new IllegalStateException("Matrix has no cities.");
-        T start = cities.get(0);
-        Route<T> r = new Route<>(start);
-        r.invalidate("SOLVER ERROR: " + msg);
-        return r;
+        return SolverUtils.fail(matrix, "Solver failed unexpectedly.");
     }
 }

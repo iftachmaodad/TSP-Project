@@ -1,0 +1,72 @@
+/* ── TSP Solver — Application Stylesheet ──────────────────────────────── */
+
+.root {
+    -fx-font-family: "SansSerif";
+    -fx-font-size: 13px;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+.button {
+    -fx-padding: 5 10 5 10;
+    -fx-background-radius: 4;
+    -fx-cursor: hand;
+}
+
+.button:hover {
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 4, 0, 0, 1);
+}
+
+/* ── ComboBox / TextField ────────────────────────────────────────────────── */
+.combo-box, .text-field {
+    -fx-padding: 4 8 4 8;
+    -fx-background-radius: 4;
+}
+
+/* ── TableView ───────────────────────────────────────────────────────────── */
+.table-view .column-header .label {
+    -fx-font-weight: bold;
+    -fx-padding: 4 6 4 6;
+}
+
+.table-view .table-row-cell {
+    -fx-cell-size: 26px;
+}
+
+.table-view .table-row-cell:selected {
+    -fx-background-color: #bbdefb;
+    -fx-text-fill: #000;
+}
+
+/* ── SplitPane divider ───────────────────────────────────────────────────── */
+.split-pane > .split-pane-divider {
+    -fx-padding: 2 0 2 0;
+    -fx-background-color: #ccc;
+}
+
+/* ── ScrollPane ──────────────────────────────────────────────────────────── */
+.scroll-pane {
+    -fx-background-color: transparent;
+}
+
+.scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}
+
+/* ── Labels ──────────────────────────────────────────────────────────────── */
+.label {
+    -fx-text-fill: #222;
+}
+
+/* ── Separator ───────────────────────────────────────────────────────────── */
+.separator {
+    -fx-padding: 4 0 4 0;
+}
+
+/* ── TabPane ─────────────────────────────────────────────────────────────── */
+.tab-pane > .tab-header-area > .headers-region > .tab {
+    -fx-padding: 6 14 6 14;
+}
+
+.tab-pane > .tab-header-area > .headers-region > .tab:selected {
+    -fx-font-weight: bold;
+}
