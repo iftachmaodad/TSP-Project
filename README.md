@@ -1,232 +1,156 @@
-# TSP Solution — Traveling Salesman Problem with Time Constraints
+# TSP Solver
 
-## Project Title
-
-**Traveling Salesman Problem (TSP) with Time Constraints**
+An interactive desktop application for solving the **Travelling Salesman Problem with hard deadline constraints**, built with Java 21 and JavaFX 21.
 
 ---
 
-## Project Overview
+## What it does
 
-This project implements a modular and extensible solution for the **Traveling Salesman Problem (TSP)** with **optional time (deadline) constraints**.
+The user places cities on a live satellite map, optionally assigns arrival deadlines to each city, then runs one of four solver algorithms to find the shortest valid closed route (depot → all cities → depot) that visits every city before its deadline.
 
-Unlike the classic TSP, where the goal is only to minimize total distance, this system supports **realistic routing constraints**, including:
+Two transport modes are supported:
 
-* Cities that must be visited before a deadline
-* Different distance calculation strategies
-* Multiple solver heuristics (fast vs optimized)
-* Optional integration with real-world road data (Google Maps)
-
-The project is written in **Java 21**, uses **JavaFX** for the UI, follows a **top-down architecture**, and is built using **Maven**.
+| Mode | Distance | Speed |
+|------|----------|-------|
+| **AirCity** | Haversine great-circle | 16.67 m/s (~60 km/h drone) |
+| **GroundCity** | OSRM real road distances | actual driving duration from OSRM |
 
 ---
 
-## Key Features
+## Algorithms
 
-* Generic city model with optional deadlines
-* Two city types:
+| Solver | Complexity | Guarantee |
+|--------|-----------|-----------|
+| `BruteForceSolver` | O(n!) | **Exact optimal** — refuses n > 10 |
+| `SlackInsertion2OptSolver` | O(n² × passes) | Best heuristic — multi-start + relocate + 2-opt |
+| `SlackInsertionSolver` | O(n²) | Fast single-pass slack insertion |
+| `NearestNeighborSolver` | O(n²) | Greedy baseline |
 
-  * **AirCity** — distance calculated locally using the Haversine formula
-  * **GroundCity** — distance and travel time retrieved from Google Maps API
-* Central distance & time matrix shared across solvers
-* Automatic strategy selection (local math vs API)
-* Route validation (arrival times + deadline checks)
-* Pluggable solver architecture using generics
-* JavaFX-based interactive UI
+**Slack-based insertion:** Deadline cities are sorted by `slack = deadline − directTravelTime(start → city)` and inserted tightest-first before flexible cities, preserving feasibility throughout construction.
 
 ---
 
-## Project Structure
+## Project structure
 
 ```
-src/main/java
-├── data
-│   ├── GoogleMapsService.java
-│   └── Matrix.java
-│
-├── domain
-│   ├── City.java
-│   ├── AirCity.java
-│   ├── GroundCity.java
-│   └── CityRegistry.java
-│
-├── model
-│   └── Route.java
-│
-├── solver
-│   ├── Solver.java
-│   ├── SlackInsertionSolver.java
-│   ├── SlackInsertion2OptSolver.java
-│   ├── RouteEvaluator.java
-│   ├── RouteImprover.java
-│   └── Insertion.java
-│
-├── ui
-│   ├── TspApp.java
-│   ├── UiController.java
-│   └── MapViewPane.java
-│
-src/main/resources
-├── images
-└── app.css
+src/
+├── main/
+│   ├── java/
+│   │   ├── benchmark/     TestInstance, TestInstanceLibrary, SolverBenchmark
+│   │   ├── data/          Matrix, AirDistanceProvider, GroundDistanceProvider,
+│   │   │                  OsrmClient, OsrmParser, DistanceProvider
+│   │   ├── domain/        City (abstract), AirCity, GroundCity,
+│   │   │                  CityFactory, CityRegistry
+│   │   ├── model/         Route
+│   │   ├── solver/        Solver, BruteForceSolver, SlackInsertion2OptSolver,
+│   │   │                  SlackInsertionSolver, NearestNeighborSolver,
+│   │   │                  RouteEvaluator, RouteImprover, SolverUtils, Insertion
+│   │   ├── tools/         FetchPlacesData  (one-time Overpass data fetcher)
+│   │   └── ui/            TspApp, UiController, CityPanel, SolverPanel,
+│   │                      BenchmarkPane, MapViewPane, OsmTileLayer,
+│   │                      PlaceSearchService, MapMarker
+│   └── resources/
+│       ├── places.json              Bundled ~200 world cities + airports
+│       ├── cache/
+│       │   ├── places_cache.json    Overpass-fetched pins (grows over time)
+│       │   └── osrm_cache.json      OSRM road distance cache (append-only JSONL)
+│       ├── images/world.jpg         Offline fallback map (equirectangular)
+│       └── styles/app.css           Application stylesheet
+└── test/
+    └── java/
+        ├── data/          DistanceProviderTest, MatrixTest, OsrmParserTest
+        ├── domain/        CityTest
+        ├── misc/          MiscTest
+        ├── model/         RouteTest
+        └── solver/        SolverTest, SolverUtilsTest
 ```
 
 ---
 
-## Architecture Overview
+## Requirements
 
-The system is designed using a **top-down approach**, divided into logical layers:
-
-1. **UI Layer (JavaFX)**
-   Handles user interaction, city creation, solver selection, and result visualization.
-
-2. **Domain Layer**
-   Defines the city hierarchy, deadlines, and strategy selection.
-
-3. **Data Layer**
-   Builds and stores distance/time matrices and communicates with external APIs when needed.
-
-4. **Solver Layer**
-   Contains interchangeable solving algorithms using a generic solver interface.
-
-5. **Output Model**
-   Represents the final route, arrival times, and validity status.
-
-Architecture and execution flow are documented using **PlantUML diagrams**:
-
-* `tsp_architecture.puml`
-* `tsp_solver_flow.puml`
+- **Java 21** or later
+- **Maven 3.8+**
+- Internet connection for live map tiles (ESRI), place pins (Overpass), road distances (OSRM), and place search (Nominatim)
+- Offline mode is available: disabling "Live map tiles" uses a bundled world map image
 
 ---
 
-## City Model & Deadlines
-
-Each city may optionally have a **deadline**.
-
-* A route is considered **invalid** if any city is visited after its deadline.
-* Deadline checks are performed during route evaluation.
-
-### City Types
-
-* **AirCity**
-
-  * Uses local mathematical distance (Haversine)
-  * Travel time = distance / constant speed
-
-* **GroundCity**
-
-  * Uses Google Distance Matrix API
-  * Distance & time retrieved dynamically
-
----
-
-## Distance & Time Matrix
-
-The `Matrix` class:
-
-* Stores all cities
-* Maintains distance and time matrices
-* Automatically populates values based on city type
-* Uses Google Maps API **only when required**
-
-Calling:
-
-```java
-Matrix.getInstance(type).populateMatrix();
-```
-
-Always results in valid distance and time values.
-
----
-
-## Solver Architecture
-
-The solver layer is **generic and extensible**.
-
-### Solver Interface
-
-```java
-public interface Solver<T extends City> {
-    Route<T> solve(T startCity);
-}
-```
-
-### Implemented Solvers
-
-* **SlackInsertionSolver**
-
-  * Fast heuristic
-  * Prioritizes urgent cities (small slack)
-
-* **SlackInsertion2OptSolver**
-
-  * Optimized version
-  * Applies route improvement (2-opt, relocation)
-
----
-
-## Intended Solving Logic (High Level)
-
-The solver mimics human decision-making:
-
-1. Identify urgent cities (with deadlines)
-2. Compute slack:
-
-   ```
-   slack = deadline − estimated arrival time
-   ```
-3. Visit cities with the smallest slack first
-4. Insert non-urgent cities when possible
-5. Validate route constraints continuously
-
----
-
-## Google Maps API Integration
-
-Used **only for GroundCity** instances.
-
-### Requirements
-
-* Google Cloud account
-* Distance Matrix API enabled
-* Billing enabled
-* API key (not hardcoded)
-
-Recommended usage:
+## Running the app
 
 ```bash
-set GOOGLE_MAPS_API_KEY=YOUR_API_KEY
+mvn javafx:run
 ```
 
----
-
-## Build & Run
-
-From the project root:
+## Running the tests
 
 ```bash
-mvn clean javafx:run
+mvn test
 ```
 
-Make sure:
+## Running the CLI benchmark
 
-* Java 21 is installed
-* API key is set if using GroundCity
+```bash
+mvn exec:java -Dexec.mainClass="benchmark.SolverBenchmark"
+```
+
+## Refreshing the bundled places data
+
+Run once a year to update `places.json` with fresh Overpass data:
+
+```bash
+mvn exec:java -Dexec.mainClass="tools.FetchPlacesData"
+```
+
+---
+
+## Caching
+
+### Pin cache (`cache/places_cache.json`)
+Overpass-fetched place pins are appended to this file after each "Load More Pins" request. On startup the file is merged with the bundled `places.json`, deduplicated by proximity (~200 m). Grows over time as new regions are explored.
+
+### OSRM distance cache (`cache/osrm_cache.json`)
+Road distance and travel time results from the OSRM API are stored as one JSON object per line:
+```json
+{"key":"2.35220,48.85660→-0.12780,51.50740","dist":453621.4,"dur":18340.2}
+```
+Both A→B and B→A keys are stored after a single fetch. Loaded into a `ConcurrentHashMap` at startup. Survives app restarts so the same city pair is never fetched twice across sessions.
 
 ---
 
-## Git & Project Hygiene
+## External services
 
-* `target/`, IDE files, and API keys are excluded via `.gitignore`
-* UML diagrams (`.puml`) are committed
-* Project is structured for future extension
+| Service | Used for | Rate limit |
+|---------|----------|-----------|
+| [ESRI World Imagery](https://www.arcgis.com) | Satellite map tiles | None (free) |
+| [Overpass API](https://overpass-api.de) | Place pins for the map overlay | ~10 req/session enforced in-app |
+| [OSRM](http://router.project-osrm.org) | Road distances for GroundCity | Fair use — cached aggressively |
+| [Nominatim](https://nominatim.openstreetmap.org) | Text search + reverse geocode | 1 req/s — used sparingly |
+
+---
+
+## Key design decisions
+
+**City is immutable.** Removing a deadline works by replacing the city in the shared list with a no-deadline copy created via `CityFactory`. This keeps `City` a pure value type and makes `Route`'s deadline tracking correct by construction.
+
+**Matrix pre-computes all pairwise distances.** Before each solve, `Matrix.populateMatrix()` fetches all n(n−1)/2 distances from the registered `DistanceProvider`. Solvers then read from the 2D array in O(1) — no repeated API calls during path evaluation.
+
+**Singleton `PlaceSearchService`.** The bundled and cached place lists are static. The `INSTANCE` field is declared after the `static {}` initializer block so `places.json` is fully loaded before the singleton is exposed.
+
+**Two-phase pin loading.** Bundled pins refresh automatically on every viewport change (instant, no network). The "Load More Pins" button is the only path to Overpass — manual, with a 5-second cooldown and a 10-call session limit shown as a usage label.
 
 ---
 
-## Author
+## Benchmark tab
 
-Student project
-Traveling Salesman Problem with Time Constraints
-Built as part of an academic programming & research assignment
+The Benchmark tab runs all four solvers against any of the 8 named test instances (trivial through twenty-city) or against city sets sent from the Solver tab via the "Send to Benchmark" button.
+
+Session instances appear in a dedicated table in the left panel (not the instance dropdown) showing name, city count, and a preview of city IDs. Clicking a row selects it; the ✕ button removes it.
+
+Results include an **optimality gap** column: the percentage above the brute-force optimal distance. This is only available when BruteForce also ran on the same instance (n ≤ 10).
 
 ---
+
+## License
+
+Student project — not for production use. OSRM and Nominatim usage must comply with their respective usage policies.
