@@ -51,8 +51,8 @@ import java.util.function.Consumer;
  * back via {@link javafx.application.Platform#runLater}.
  */
 public final class UiController {
-    private static final double SOLVER_DIVIDER_MIN = 0.38;
-    private static final double SOLVER_DIVIDER_MAX = 0.88;
+    private static final double DIVIDER_MIN = 0.30;
+    private static final double DIVIDER_MAX = 0.93;
 
     private final BorderPane root = new BorderPane();
 
@@ -156,8 +156,8 @@ public final class UiController {
         SplitPane.setResizableWithParent(routeTable, true);
         splitV.getDividers().get(0).positionProperty().addListener((obs, oldV, newV) -> {
             double p = newV.doubleValue();
-            if (p < SOLVER_DIVIDER_MIN) splitV.setDividerPositions(SOLVER_DIVIDER_MIN);
-            else if (p > SOLVER_DIVIDER_MAX) splitV.setDividerPositions(SOLVER_DIVIDER_MAX);
+            if (p < DIVIDER_MIN) splitV.setDividerPositions(DIVIDER_MIN);
+            else if (p > DIVIDER_MAX) splitV.setDividerPositions(DIVIDER_MAX);
         });
 
         root.setCenter(splitV);
@@ -706,8 +706,7 @@ public final class UiController {
     }
 
     /**
-     * Selects up to {@code cap} markers with a geographic spread to avoid pin
-     * clumping after manual Overpass fetches.
+     * Selects up to {@code cap} markers with geographic spread.
      *
      * <p>The input list is expected to be pre-sorted by importance descending.
      * The first pass applies a minimum angular separation; a second pass backfills

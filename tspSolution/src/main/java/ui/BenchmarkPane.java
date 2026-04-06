@@ -45,8 +45,8 @@ import java.util.stream.Collectors;
  * via {@link Platform#runLater}.
  */
 public final class BenchmarkPane {
-    private static final double BENCH_DIVIDER_MIN = 0.36;
-    private static final double BENCH_DIVIDER_MAX = 0.90;
+    private static final double DIVIDER_MIN = 0.30;
+    private static final double DIVIDER_MAX = 0.93;
 
     // ── Root ─────────────────────────────────────────────────────────────────
     private final BorderPane root = new BorderPane();
@@ -247,8 +247,8 @@ public final class BenchmarkPane {
         SplitPane.setResizableWithParent(table, true);
         splitV.getDividers().get(0).positionProperty().addListener((obs, oldV, newV) -> {
             double p = newV.doubleValue();
-            if (p < BENCH_DIVIDER_MIN) splitV.setDividerPositions(BENCH_DIVIDER_MIN);
-            else if (p > BENCH_DIVIDER_MAX) splitV.setDividerPositions(BENCH_DIVIDER_MAX);
+            if (p < DIVIDER_MIN) splitV.setDividerPositions(DIVIDER_MIN);
+            else if (p > DIVIDER_MAX) splitV.setDividerPositions(DIVIDER_MAX);
         });
 
         root.setLeft(left);
