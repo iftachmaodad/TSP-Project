@@ -39,8 +39,17 @@
 
 /* ── SplitPane divider ───────────────────────────────────────────────────── */
 .split-pane > .split-pane-divider {
-    -fx-padding: 2 0 2 0;
-    -fx-background-color: #ccc;
+    /* Wider hit area so the divider remains easy to re-grab. */
+    -fx-padding: 6 0 6 0;
+    -fx-background-color: #c9d1d9;
+}
+
+.split-pane:vertical > .split-pane-divider {
+    -fx-cursor: v-resize;
+}
+
+.split-pane > .split-pane-divider:hover {
+    -fx-background-color: #90a4ae;
 }
 
 /* ── ScrollPane ──────────────────────────────────────────────────────────── */
