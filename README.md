@@ -33,7 +33,7 @@ Two transport modes are supported:
 ## Project structure
 
 ```
-src/
+tspSolution/src/
 ├── main/
 │   ├── java/
 │   │   ├── benchmark/     TestInstance, TestInstanceLibrary, SolverBenchmark
@@ -79,18 +79,21 @@ src/
 ## Running the app
 
 ```bash
+cd tspSolution
 mvn javafx:run
 ```
 
 ## Running the tests
 
 ```bash
+cd tspSolution
 mvn test
 ```
 
 ## Running the CLI benchmark
 
 ```bash
+cd tspSolution
 mvn exec:java -Dexec.mainClass="benchmark.SolverBenchmark"
 ```
 
@@ -99,6 +102,7 @@ mvn exec:java -Dexec.mainClass="benchmark.SolverBenchmark"
 Run once a year to update `places.json` with fresh Overpass data:
 
 ```bash
+cd tspSolution
 mvn exec:java -Dexec.mainClass="tools.FetchPlacesData"
 ```
 
