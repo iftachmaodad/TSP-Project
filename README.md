@@ -21,17 +21,16 @@ Two transport modes are supported:
 
 | Solver | Complexity | Guarantee |
 |--------|-----------|-----------|
-| `BruteForceSolver` | O(n!) | **Exact optimal** — refuses n > 10 |
+| `BruteForceSolver` | O(n!) | **Exact optimal** — refuses n > 10 non-start cities |
 | `SlackInsertion2OptSolver` | O(n² × passes) | Best heuristic — multi-start + relocate + 2-opt |
 | `SlackInsertionSolver` | O(n²) | Fast single-pass slack insertion |
 | `NearestNeighborSolver` | O(n²) | Greedy baseline |
 
-**Slack-based insertion:** Deadline cities are sorted by `slack = deadline − directTravelTime(start → city)` and inserted tightest-first before flexible cities, preserving feasibility throughout construction.
+**Slack-based insertion:** deadline cities are sorted by `slack = deadline − directTravelTime(start → city)` and inserted tightest-first before flexible cities, preserving feasibility throughout construction.
 
 ---
 
 ## Project structure
-
 
 ```
 src/
@@ -49,13 +48,16 @@ src/
 │   │   ├── tools/         FetchPlacesData  (one-time Overpass data fetcher)
 │   │   └── ui/            TspApp, UiController, CityPanel, SolverPanel,
 │   │                      BenchmarkPane, MapViewPane, OsmTileLayer,
-│   │                      PlaceSearchService, MapMarker
+│   │                      PlaceSearchService, MapMarker, LocationMatchers
 │   └── resources/
 │       ├── places.json              Bundled ~200 world cities + airports
 │       ├── cache/
 │       │   ├── places_cache.json    Overpass-fetched pins (grows over time)
 │       │   └── osrm_cache.json      OSRM road distance cache (append-only JSONL)
-│       ├── images/world.jpg         Offline fallback map (equirectangular)
+│       ├── images/
+│       │   ├── world.jpg            Offline fallback map (equirectangular)
+│       │   ├── tsp-icon-600.png     Application icon (600x600)
+│       │   └── tsp-icon-300.png     Application icon (300×300)
 │       └── styles/app.css           Application stylesheet
 └── test/
     └── java/
@@ -72,15 +74,71 @@ src/
 
 - **Java 21** or later
 - **Maven 3.8+**
-- Internet connection for live map tiles (ESRI), place pins (Overpass), road distances (OSRM), and place search (Nominatim)
+- Internet connection for live map tiles (ESRI), place pins (Overpass), and road distances (OSRM)
 - Offline mode is available: disabling "Live map tiles" uses a bundled world map image
+
+---
+
+## Running the application
+
+A `run.bat` launcher is included in the project root for Windows. Double-click it for an interactive menu:
+
+```
+[1]  Run Application
+[2]  Run Tests
+[3]  Run Benchmark (console output)
+[4]  Run Application + Tests
+[5]  Clean and Rebuild
+[0]  Exit
+```
+
+Alternatively, use Maven directly:
+
+```bash
+mvn javafx:run                                              # launch the app
+mvn test                                                    # run all tests
+mvn exec:java -Dexec.mainClass="benchmark.SolverBenchmark" # CLI benchmark
+mvn exec:java -Dexec.mainClass="tools.FetchPlacesData"     # refresh places.json
+```
+
+---
+
+## Map interaction
+
+| Action | Result |
+|--------|--------|
+| Left-drag | Pan the map |
+| Scroll | Zoom in / out |
+| Click a red pin | Select a named place — pre-fills the city panel |
+| Double-click empty space | Place a raw coordinate marker |
+| Single-click empty space | Clear selection |
+
+**Added city markers:**
+
+| Symbol | Meaning |
+|--------|---------|
+| ⬥ Gold ring | Start city (depot) |
+| ⏰ Cyan ring | City with a deadline |
+| ● White/grey | Regular city |
+
+The solved route is drawn as a yellow arrow line after solving.
+
+---
+
+## Pin loading
+
+Overlay pins use a two-tier approach:
+
+**Bundled pins** (`places.json`) — ~200 world cities and airports loaded at startup. These refresh automatically on every viewport change (pan / zoom) with no network call.
+
+**Load More Pins button** — manually fetches additional pins from the Overpass API for the current viewport. Subject to a 5-second cooldown and a 10-call per-session limit. Results are saved to `cache/places_cache.json` so the same area is never fetched twice across sessions.
 
 ---
 
 ## Caching
 
 ### Pin cache (`cache/places_cache.json`)
-Overpass-fetched place pins are appended to this file after each "Load More Pins" request. On startup the file is merged with the bundled `places.json`, deduplicated by proximity (~200 m). Grows over time as new regions are explored.
+Overpass-fetched place pins are written to this file after each "Load More Pins" request. On startup the file is merged with the bundled `places.json`, deduplicated by proximity (~200 m). Grows over time as new regions are explored.
 
 ### OSRM distance cache (`cache/osrm_cache.json`)
 Road distance and travel time results from the OSRM API are stored as one JSON object per line:
@@ -117,7 +175,7 @@ Both A→B and B→A keys are stored after a single fetch. Loaded into a `Concur
 
 The Benchmark tab runs all four solvers against any of the 8 named test instances (trivial through twenty-city) or against city sets sent from the Solver tab via the "Send to Benchmark" button.
 
-Session instances appear in a dedicated table in the left panel (not the instance dropdown) showing name, city count, and a preview of city IDs. Clicking a row selects it; the ✕ button removes it.
+Session instances appear in a dedicated card list in the left panel (not the instance dropdown) showing name, city count, and a preview of city IDs. Clicking a card selects it; the Remove button deletes only that instance.
 
 Results include an **optimality gap** column: the percentage above the brute-force optimal distance. This is only available when BruteForce also ran on the same instance (n ≤ 10).
 

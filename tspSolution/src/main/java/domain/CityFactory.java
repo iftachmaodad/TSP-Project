@@ -3,16 +3,14 @@ package domain;
 import java.lang.reflect.Constructor;
 
 /**
- * Creates City instances from a known subclass type, coordinates, and optional metadata.
+ * Creates {@link City} instances from a known subclass type, coordinates,
+ * and optional metadata.
  *
- * This factory exists so that UI classes (CityPanel) and test/benchmark code can
- * instantiate cities without duplicating reflection logic or depending on each other.
+ * <p>This factory exists so that UI classes and benchmark code can instantiate
+ * cities without duplicating reflection logic or depending on each other.
  *
- * All city subclasses must expose the canonical constructor:
- *   (String id, double x, double y, double deadline)
- *
- * If the id is blank or null, the City base class will auto-generate one.
- * If the deadline is null or non-positive, City.NO_DEADLINE is used.
+ * <p>All city subclasses must expose the canonical constructor:
+ * {@code (String id, double x, double y, double deadline)}.
  */
 public final class CityFactory {
 
@@ -24,11 +22,12 @@ public final class CityFactory {
      * Creates a city of the given type.
      *
      * @param type     registered City subclass (must be in CityRegistry)
-     * @param id       optional name — null or blank triggers auto-naming
+     * @param id       optional display name — {@code null} or blank triggers auto-naming
      * @param lon      longitude (x)
      * @param lat      latitude (y)
-     * @param deadline optional deadline in seconds — null means no deadline
-     * @return the new city instance, or null if construction fails
+     * @param deadline arrival deadline in seconds; {@code null} or non-positive
+     *                 means no deadline
+     * @return the new city instance, or {@code null} if construction fails
      */
     public static <T extends City> T create(Class<T> type,
                                             String id,
@@ -54,7 +53,10 @@ public final class CityFactory {
 
     /**
      * Parses a deadline string entered by the user.
-     * Returns null if the string is blank or not a positive number.
+     *
+     * @param s the raw input string
+     * @return the deadline value in seconds, or {@code null} if the string is
+     *         blank, non-numeric, zero, or negative
      */
     public static Double parseDeadline(String s) {
         if (s == null || s.isBlank()) return null;

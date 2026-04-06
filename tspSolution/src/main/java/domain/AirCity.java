@@ -1,17 +1,16 @@
 package domain;
 
 /**
- * A city reachable by air (drone / plane).
+ * A city reachable by air (drone / fixed-wing).
  *
- * Pure data class — coordinates, ID, optional deadline.
- * Distance and time calculations are handled by AirDistanceProvider.
+ * <p>Pure value type — coordinates, ID, optional deadline.
+ * All distance and time calculations are delegated to
+ * {@link data.AirDistanceProvider} via {@link CityRegistry}.
  */
 public class AirCity extends City {
 
-    // --- Constructors ---
-
-    public AirCity(double x, double y)                              { super(x, y); }
-    public AirCity(double x, double y, double deadline)             { super(x, y, deadline); }
-    public AirCity(String ID, double x, double y)                   { super(ID, x, y); }
-    public AirCity(String ID, double x, double y, double deadline)  { super(ID, x, y, deadline); }
+    public AirCity(double x, double y)                             { super(x, y); }
+    public AirCity(double x, double y, double deadline)            { super(x, y, deadline); }
+    public AirCity(String id, double x, double y)                  { super(id, x, y); }
+    public AirCity(String id, double x, double y, double deadline) { super(id, x, y, deadline); }
 }

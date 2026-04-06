@@ -9,31 +9,31 @@ import java.nio.charset.StandardCharsets;
 /**
  * Minimal HTTP client for the OSRM public routing API.
  *
- * Endpoint:
- *   http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false
+ * <h3>Endpoint</h3>
+ * {@code http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false}
  *
- * Returns the raw JSON response string, or null if the request fails for any
- * reason (network unavailable, timeout, non-200 status, etc.).
+ * <h3>Return value</h3>
+ * Returns the raw JSON response string, or {@code null} on any error (network
+ * unavailable, timeout, non-200 status, etc.). The caller
+ * ({@link GroundDistanceProvider}) handles {@code null} by falling back to the
+ * Haversine approximation, so the application never crashes without internet.
  *
- * The caller (GroundDistanceProvider) handles null by falling back to the
- * Haversine approximation — the app never crashes without internet.
+ * <h3>Usage policy</h3>
+ * The public OSRM demo server is for development and testing only. Do not use
+ * it for production traffic or automated bulk requests.
+ * See: <a href="http://project-osrm.org/docs/v5.22.0/api/">OSRM API docs</a>
  *
- * OSRM usage policy:
- *   The public demo server is for development/testing only.
- *   Do not use it for production traffic or automated bulk requests.
- *   See: http://project-osrm.org/docs/v5.22.0/api/
- *
- * This class is package-private — only GroundDistanceProvider uses it.
+ * <h3>Thread safety</h3>
+ * Stateless singleton; safe from any thread.
  */
 final class OsrmClient {
 
     private static final String BASE_URL =
         "http://router.project-osrm.org/route/v1/driving/%f,%f;%f,%f?overview=false";
 
-    private static final String USER_AGENT  = "TSP-Solver/1.0 (student project)";
-    private static final int    TIMEOUT_MS  = 6_000;
+    private static final String USER_AGENT = "TSP-Solver/1.0 (student project)";
+    private static final int    TIMEOUT_MS = 6_000;
 
-    // Package-private singleton — stateless
     static final OsrmClient INSTANCE = new OsrmClient();
 
     private OsrmClient() {}
@@ -45,7 +45,7 @@ final class OsrmClient {
      * @param lat1 latitude  of the first point
      * @param lon2 longitude of the second point
      * @param lat2 latitude  of the second point
-     * @return raw JSON response string, or null on any error
+     * @return raw JSON response string, or {@code null} on any error
      */
     String fetch(double lon1, double lat1, double lon2, double lat2) {
         try {
@@ -68,7 +68,7 @@ final class OsrmClient {
             return sb.toString();
 
         } catch (Exception e) {
-            return null; // network unavailable, timeout, etc.
+            return null;
         }
     }
 }

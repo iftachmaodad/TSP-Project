@@ -20,12 +20,12 @@ import domain.City;
 /**
  * Interactive map canvas.
  *
- * No separate pin overlay. The user clicks directly on the tile map;
- * UiController reverse-geocodes the click to find what city was clicked.
+ * <p>The user interacts directly with the tile map. Clicking an overlay pin
+ * pre-fills the city panel with the pin's name and coordinates. Double-clicking
+ * empty space places a raw coordinate marker.
  *
- * Online mode:  click → reverse geocode → if named place found, pre-fill CityPanel
- *                                        → if empty space, show "no place here"
- * Offline mode: click → raw coordinate fallback (old behaviour)
+ * <p>Online mode:  click overlay pin → pre-fill city panel with named place
+ * <br>Offline mode: double-click → raw coordinate fallback
  *
  * Added city markers are drawn with importance-based sizing:
  *   capital   → gold star shape
@@ -322,17 +322,15 @@ public final class MapViewPane extends StackPane {
         setOnMouseReleased(e -> {
             panning = false;
             // Only refresh overlay pins when the viewport actually moved.
-            // Firing the debounce on every mouse release (including plain pin
-            // clicks) caused a visible flash: pins were cleared then reloaded
-            // 350 ms later even though the camera hadn't changed.
+            // Firing the debounce on a plain pin click would clear and reload
+            // pins 350 ms later even though the camera had not changed.
             if (movedWhilePress) viewportDebounce.playFromStart();
         });
 
-        // Single click — pin selection, added-city selection, or deselect.
-        // IMPORTANT: JavaFX fires clickCount=1 before clickCount=2 on a double-click,
-        // which means the single-click handler (deselect) runs immediately before the
-        // double-click handler (place crosshair). We suppress the single-click deselect
-        // when clickCount==2 so the two handlers don't conflict.
+        // JavaFX fires clickCount=1 before clickCount=2 on a double-click,
+            // which means the single-click handler (deselect) runs immediately before
+            // the double-click handler (place crosshair). We suppress the deselect
+            // when clickCount==2 so the two handlers do not conflict.
         setOnMouseClicked(e -> {
             if (e.getButton() != MouseButton.PRIMARY || movedWhilePress) return;
             double vw = getWidth(), vh = getHeight();

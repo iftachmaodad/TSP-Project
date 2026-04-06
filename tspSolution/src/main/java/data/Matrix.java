@@ -28,14 +28,11 @@ import java.util.Set;
  *   <li>Symmetric filling: {@code d(i,j) == d(j,i)}, so only the upper
  *       triangle is computed, halving the number of provider calls.</li>
  *   <li>{@link #populateMatrix()} returns {@code false} and leaves the matrix
- *       in an invalid state if any computed value is NaN or if the city set is
- *       empty.</li>
- *   <li>{@link #getCities()} always returns the snapshot list used when the
- *       matrix was last populated, giving a stable, index-consistent view. If
- *       the matrix has never been populated it returns a copy of the current
- *       insertion-order set instead.</li>
- *   <li>Generics prevent mixing city types (e.g. AirCity and GroundCity) in
- *       the same matrix, catching errors at compile time.</li>
+ *       invalid if the city set is empty or any computed value is non-finite.</li>
+ *   <li>{@link #getCities()} returns the snapshot list used when the matrix
+ *       was last populated (stable, index-consistent). If the matrix has never
+ *       been populated it returns a copy of the current insertion-order set.</li>
+ *   <li>Generic type parameter prevents mixing city types at compile time.</li>
  * </ul>
  *
  * @param <T> the concrete city subtype
@@ -45,7 +42,6 @@ public final class Matrix<T extends City> {
     private final Class<T>         type;
     private final DistanceProvider provider;
 
-    /** Insertion-order set; used as the source of truth for which cities are tracked. */
     private final Set<T> cities = new LinkedHashSet<>();
 
     /**
@@ -109,11 +105,8 @@ public final class Matrix<T extends City> {
      * Computes the distance and time matrices using the registered
      * {@link DistanceProvider}.
      *
-     * <p>Returns {@code false} (and leaves the matrix invalid) if:
-     * <ul>
-     *   <li>the city set is empty, or</li>
-     *   <li>any provider call returns NaN or an infinite value.</li>
-     * </ul>
+     * <p>Returns {@code false} (and leaves the matrix invalid) if the city
+     * set is empty or any provider call returns a non-finite value.
      *
      * @return {@code true} on success, {@code false} if population failed
      */
@@ -134,7 +127,6 @@ public final class Matrix<T extends City> {
                 double d = provider.distance(a, b);
                 double t = provider.time(a, b);
 
-                // Any NaN or infinite value makes the matrix unusable.
                 if (!Double.isFinite(d) || !Double.isFinite(t)) {
                     System.err.println("[Matrix] WARNING: non-finite value between "
                             + a.getID() + " and " + b.getID()
@@ -145,7 +137,6 @@ public final class Matrix<T extends City> {
                 dist[i][j] = dist[j][i] = d;
                 time[i][j] = time[j][i] = t;
             }
-            // Diagonal is always zero (distance/time from a city to itself).
             dist[i][i] = 0;
             time[i][i] = 0;
         }
@@ -223,16 +214,15 @@ public final class Matrix<T extends City> {
     /** Number of cities currently tracked (whether or not the matrix is populated). */
     public int size() { return cities.size(); }
 
-    public Class<T>         getType()           { return type; }
-    public DistanceProvider getProvider()        { return provider; }
-    public double[][]       getDistanceMatrix()  { return distanceMatrix; }
-    public double[][]       getTimeMatrix()      { return timeMatrix; }
+    public Class<T>         getType()          { return type; }
+    public DistanceProvider getProvider()       { return provider; }
+    public double[][]       getDistanceMatrix() { return distanceMatrix; }
+    public double[][]       getTimeMatrix()     { return timeMatrix; }
 
     /**
      * Returns the city list in snapshot order (the order used for index
-     * lookups). If the matrix has never been populated, returns a copy of
-     * the current insertion-order set instead, so callers always get a
-     * non-null, consistent list.
+     * lookups). If the matrix has never been populated, returns a copy of the
+     * current insertion-order set so callers always receive a non-null list.
      */
     public List<T> getCities() {
         return snapshot.isEmpty() ? new ArrayList<>(cities) : snapshot;

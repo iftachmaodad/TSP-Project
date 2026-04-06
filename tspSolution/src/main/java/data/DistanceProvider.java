@@ -3,22 +3,27 @@ package data;
 import domain.City;
 
 /**
- * Computes travel distance (meters) and travel time (seconds) between two cities.
+ * Computes travel distance (metres) and travel time (seconds) between two
+ * cities.
  *
- * Each city type registers one implementation in CityRegistry.
- * Implementations must be stateless and thread-safe.
+ * <p>Each city type registers exactly one implementation in
+ * {@link domain.CityRegistry}. Implementations must be stateless and
+ * thread-safe.
  */
 public interface DistanceProvider {
 
     /**
-     * Returns the travel distance in meters between two cities.
-     * Returns 0 if a == b, NaN only if computation is fundamentally impossible.
+     * Returns the travel distance in metres between two cities.
+     * Returns {@code 0} if {@code a == b}; returns {@link Double#NaN} only
+     * if the computation is fundamentally impossible (e.g. both arguments are
+     * {@code null}).
      */
     double distance(City a, City b);
 
     /**
      * Returns the travel time in seconds between two cities.
-     * Returns 0 if a == b, NaN only if computation is fundamentally impossible.
+     * Returns {@code 0} if {@code a == b}; returns {@link Double#NaN} only
+     * if the computation is fundamentally impossible.
      */
     double time(City a, City b);
 }

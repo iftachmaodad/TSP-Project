@@ -460,7 +460,7 @@ public final class UiController {
      * disk cache — no network call, no spinner, always instant.
      *
      * <p>Called automatically whenever the viewport changes (pan / zoom).
-     * Already-added cities are filtered out so they don't show as pins.
+     * Already-added cities are filtered out so they do not appear as overlay pins.
      */
     private void refreshBundledPins() {
         if (!mapPane.isTilesEnabled()) return;

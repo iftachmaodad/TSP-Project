@@ -97,11 +97,9 @@ public final class OsmTileLayer {
     /**
      * Draws tiles onto the GraphicsContext.
      *
-     * IMPORTANT: tileScreen and osmZ are computed from WORLD_W (not vw).
-     * This ensures tile positions match MapViewPane's worldToScreen formula,
-     * which also uses WORLD_W as the reference world width.
-     * Using vw here caused an offset proportional to (WORLD_W/vw) that made
-     * city pins appear displaced from their correct tile location.
+     * {@code tileScreen} and {@code osmZ} are computed from {@code WORLD_W}
+     * (not {@code vw}) so that tile positions match {@link MapViewPane}'s
+     * {@code worldToScreen} formula, which uses the same reference world width.
      */
     public void draw(GraphicsContext g, double vw, double vh,
                      double camLon, double camLat, double zoom) {

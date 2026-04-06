@@ -1,17 +1,18 @@
 package ui;
 
 /**
- * Represents a place returned by Nominatim reverse geocoding.
+ * Represents a named place shown as an overlay pin on the map.
  *
- * Used only internally between PlaceSearchService and UiController —
- * no separate pin overlay is drawn on the map. The user clicks directly
- * on the tile's city dot; we reverse geocode to find out what they clicked.
+ * <p>Used internally between {@link PlaceSearchService} and
+ * {@link UiController}. Clicking a pin pre-fills the city name and
+ * coordinates in the city panel; the user then confirms by pressing
+ * "Add City".
  *
- * @param label      Display name (shortened from Nominatim display_name)
- * @param lon        Longitude
- * @param lat        Latitude
- * @param importance 0.0–1.0 from Nominatim — used to size added-city markers
- * @param placeType  "capital", "city", "town", "village", "airport", "other"
+ * @param label      display name of the place
+ * @param lon        longitude
+ * @param lat        latitude
+ * @param importance 0.0–1.0 relevance score used to size and filter pins
+ * @param placeType  one of: "capital", "city", "town", "village", "airport", "other"
  */
 public record MapMarker(String label, double lon, double lat,
                         double importance, String placeType) {

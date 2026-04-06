@@ -186,8 +186,7 @@ public final class CityPanel {
         modeBox.setPromptText("Choose City Type");
         startBox.setPromptText("Choose Start City");
 
-        // Fix: startBox needs cell + button factories so it shows just the city ID,
-        // not the full City.toString() which includes coordinates.
+        // Show only the city ID in the start-city combo box, not the full City.toString().
         startBox.setCellFactory(lv -> new ListCell<>() {
             @Override protected void updateItem(City item, boolean empty) {
                 super.updateItem(item, empty);
@@ -214,8 +213,7 @@ public final class CityPanel {
 
         cityListView.setItems(cities);
 
-        // Fix: add a cell factory so the list shows "⏰ CityName [7200 s]" for deadline
-        // cities and plain "CityName" otherwise, instead of raw City.toString().
+        // Show deadline cities as "⏰ CityName [7200 s]" and plain "CityName" otherwise.
         cityListView.setCellFactory(lv -> new ListCell<>() {
             @Override protected void updateItem(City item, boolean empty) {
                 super.updateItem(item, empty);

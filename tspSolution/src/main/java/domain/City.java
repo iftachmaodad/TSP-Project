@@ -7,10 +7,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Abstract base class for a location (city / stop) in the TSP problem.
  *
- * <p>City is a pure data class: it stores geographic coordinates, a display ID,
- * and an optional arrival-deadline in seconds. All distance and time calculations
- * are delegated to {@link data.DistanceProvider} implementations registered per
- * concrete subclass in {@link CityRegistry}.
+ * <p>City is a pure value type: it stores geographic coordinates, a display
+ * ID, and an optional arrival deadline in seconds. All distance and travel-time
+ * calculations are delegated to {@link data.DistanceProvider} implementations
+ * registered per concrete subclass in {@link CityRegistry}.
  *
  * <h3>Coordinate convention</h3>
  * <ul>
@@ -22,24 +22,25 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * <h3>Equality</h3>
  * Two cities are equal if and only if they share the same concrete class and
- * the same coordinates within 1 × 10⁻⁹ degree tolerance (~0.1 mm). The ID and
- * deadline are excluded so that the same physical location cannot appear twice
- * in a route under different names.
+ * the same coordinates within 1 × 10⁻⁹ degree tolerance (~0.1 mm). The ID
+ * and deadline are excluded so that the same physical location cannot appear
+ * twice in a route under different names.
  *
- * <h3>Thread safety</h3>
- * The auto-naming counter uses one {@link AtomicInteger} per concrete type,
- * stored in a {@link ConcurrentHashMap}, making concurrent construction safe.
+ * <h3>Auto-naming</h3>
+ * When no explicit ID is given (or the given ID matches a registered type
+ * prefix such as {@code "AirCity"}), a unique name is generated automatically,
+ * e.g. {@code "AirCity7"}. The counter is per-type and uses one
+ * {@link AtomicInteger} per concrete subclass stored in a
+ * {@link ConcurrentHashMap}, making concurrent construction safe.
  */
 public abstract class City {
 
-    // ── Auto-naming: one AtomicInteger per concrete subclass ─────────────────
     private static final ConcurrentHashMap<Class<? extends City>, AtomicInteger>
             TYPE_COUNTERS = new ConcurrentHashMap<>();
 
-    /** Sentinel meaning "this city has no deadline constraint". */
+    /** Sentinel value meaning "this city has no deadline constraint". */
     public static final double NO_DEADLINE = Double.MAX_VALUE;
 
-    // ── Immutable state ───────────────────────────────────────────────────────
     private final String id;
     private final double x;
     private final double y;
@@ -47,13 +48,13 @@ public abstract class City {
 
     // ── Constructors ──────────────────────────────────────────────────────────
 
-    /** No-deadline constructor with auto-generated ID. */
+    /** Auto-named, no deadline. */
     protected City(double x, double y)                       { this(null, x, y, NO_DEADLINE); }
 
-    /** Deadline constructor with auto-generated ID. */
+    /** Auto-named, with deadline. */
     protected City(double x, double y, double deadline)      { this(null, x, y, deadline);    }
 
-    /** No-deadline constructor with explicit ID. */
+    /** Explicit ID, no deadline. */
     protected City(String id, double x, double y)            { this(id,   x, y, NO_DEADLINE); }
 
     /**
@@ -69,7 +70,7 @@ public abstract class City {
      */
     protected City(String id, double x, double y, double deadline) {
 
-        // ── Clamp coordinates ─────────────────────────────────────────────────
+        // Clamp out-of-range coordinates and warn.
         double cx = x, cy = y;
         if (x < -180 || x > 180 || y < -90 || y > 90) {
             System.err.println("[City] WARNING: coordinates (" + x + ", " + y
@@ -78,13 +79,11 @@ public abstract class City {
             cy = Math.max(-90, Math.min(90, y));
         }
 
-        // ── Resolve ID ────────────────────────────────────────────────────────
         String resolvedId = (id == null || id.isBlank()
                 || CityRegistry.startsWithIgnoreCase(id))
                 ? generateDefaultId()
                 : id.trim();
 
-        // ── Normalize deadline ────────────────────────────────────────────────
         double resolvedDeadline = (deadline <= 0) ? NO_DEADLINE : deadline;
 
         this.id       = resolvedId;
@@ -112,6 +111,11 @@ public abstract class City {
 
     // ── Object overrides ──────────────────────────────────────────────────────
 
+    /**
+     * Two cities are equal when they have the same concrete class and their
+     * coordinates agree within 1 × 10⁻⁹ degrees (~0.1 mm). ID and deadline
+     * are deliberately excluded.
+     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
@@ -124,7 +128,7 @@ public abstract class City {
 
     @Override
     public int hashCode() {
-        // Round to ~0.1 mm to match the equals tolerance.
+        // Round to ~0.1 mm precision to match the equals tolerance.
         return Objects.hash(Math.round(x * 1e6), Math.round(y * 1e6));
     }
 
@@ -140,7 +144,6 @@ public abstract class City {
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    /** Thread-safe auto-name generation, e.g. {@code "AirCity7"}. */
     private String generateDefaultId() {
         Class<? extends City> type = this.getClass();
         AtomicInteger counter =

@@ -8,7 +8,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -33,19 +32,15 @@ import java.util.function.Consumer;
  *
  *
  * <h3>Thread safety</h3>
- * All Overpass/Nominatim calls run on a single background thread.
+ * All Overpass calls run on a single background thread.
  * Disk writes also happen on that thread so they never block the FX thread.
  */
 public final class PlaceSearchService {
 
     private static final String USER_AGENT     = "TSP-Solver/1.0 (student project)";
-    private static final int    TIMEOUT_MS     = 6_000;
     private static final int    OVERPASS_TO_MS = 20_000;
     private static final int    MIN_PINS       = 5;
-    private static final String NOMINATIM      = "https://nominatim.openstreetmap.org";
     private static final String OVERPASS       = "https://overpass-api.de/api/interpreter";
-    private static final String REVERSE_URL    =
-            NOMINATIM + "/reverse?format=json&zoom=14&accept-language=en&lon=%f&lat=%f";
     // ── Grid cell size for Overpass queries ───────────────────────────────────
     private static final double CELL = 5.0;
 
@@ -77,7 +72,6 @@ public final class PlaceSearchService {
     // ── Instance fields ───────────────────────────────────────────────────────
     private PlaceSearchService() {} // singleton — use INSTANCE
 
-    private final AtomicBoolean   online = new AtomicBoolean(true);
     private final Map<String, List<MapMarker>> overpassCache =
             new LinkedHashMap<>(CACHE_MAX, 0.75f, true) {
                 @Override protected boolean removeEldestEntry(
@@ -104,7 +98,6 @@ public final class PlaceSearchService {
     /** Returns how many Overpass API calls have been made this session. */
     public int getOverpassCallCount() { return overpassCallCount; }
 
-    public boolean isOnline() { return online.get(); }
 
     /**
      * Returns pins from the bundled {@code places.json} and disk cache only —
@@ -173,20 +166,6 @@ public final class PlaceSearchService {
 
             List<MapMarker> merged = merge(local, fetched, west, south, east, north);
             Platform.runLater(() -> onResult.accept(merged));
-        });
-    }
-
-    /** Reverse geocode a click position — Nominatim only. */
-    public void reverseGeocode(double lon, double lat, Consumer<MapMarker> onResult) {
-        worker.submit(() -> {
-            String json = doGet(String.format(REVERSE_URL, lon, lat));
-            if (json == null) {
-                online.set(false);
-                Platform.runLater(() -> onResult.accept(null));
-                return;
-            }
-            online.set(true);
-            Platform.runLater(() -> onResult.accept(parseReverse(json)));
         });
     }
 
@@ -539,45 +518,6 @@ public final class PlaceSearchService {
         return extractField(el.substring(ti), key);
     }
 
-    // ── Nominatim parsers ─────────────────────────────────────────────────────
-
-    private static final Set<String> MEANINGFUL = Set.of(
-            "city", "town", "village", "hamlet", "suburb", "borough",
-            "municipality", "capital", "administrative",
-            "aerodrome", "airport", "airfield", "island", "country");
-
-    private static MapMarker parseReverse(String json) {
-        if (json == null || json.contains("\"error\"")) return null;
-        try {
-            String name = extractField(json, "display_name");
-            String lon  = extractField(json, "lon"), lat = extractField(json, "lat");
-            String at   = extractField(json, "addresstype");
-            String type = extractField(json, "type"), cls = extractField(json, "class");
-            String imp  = extractField(json, "importance");
-            if (name == null || lon == null || lat == null) return null;
-            String eff = at != null ? at : type != null ? type : cls != null ? cls : "";
-            boolean ok = MEANINGFUL.stream().anyMatch(t -> t.equalsIgnoreCase(eff));
-            if (!ok && !"place".equals(cls) && !"aeroway".equals(cls)) return null;
-            double im = imp != null ? Double.parseDouble(imp) : 0.5;
-            return new MapMarker(shortenName(name),
-                    Double.parseDouble(lon), Double.parseDouble(lat),
-                    im, classifyPlace(eff, cls, im));
-        } catch (Exception e) { return null; }
-    }
-
-    private static String classifyPlace(String type, String osmClass, double importance) {
-        if (type == null) return "other";
-        String t = type.toLowerCase();
-        if ("aerodrome".equals(t) || "airport".equals(t) || "airfield".equals(t)
-                || "aeroway".equals(osmClass)) return "airport";
-        if (importance >= 0.7 && ("city".equals(t) || "administrative".equals(t)
-                || "capital".equals(t) || "country".equals(t))) return "capital";
-        if ("city".equals(t) || "municipality".equals(t) || "borough".equals(t)) return "city";
-        if ("town".equals(t)) return "town";
-        if ("village".equals(t) || "hamlet".equals(t) || "suburb".equals(t)) return "village";
-        return "other";
-    }
-
     // ── JSON helpers ──────────────────────────────────────────────────────────
 
     private static void eachObject(String json, Consumer<String> h) {
@@ -620,12 +560,6 @@ public final class PlaceSearchService {
         }
     }
 
-    private static String shortenName(String name) {
-        if (name == null) return null;
-        int comma = name.indexOf(',');
-        return (comma > 0 ? name.substring(0, comma) : name).trim();
-    }
-
     private static String readStream(InputStream in) throws IOException {
         StringBuilder sb = new StringBuilder();
         try (BufferedReader br = new BufferedReader(
@@ -637,18 +571,6 @@ public final class PlaceSearchService {
     }
 
     // ── Network ───────────────────────────────────────────────────────────────
-
-    private String doGet(String urlStr) {
-        try {
-            HttpURLConnection conn =
-                    (HttpURLConnection) URI.create(urlStr).toURL().openConnection();
-            conn.setRequestProperty("User-Agent", USER_AGENT);
-            conn.setConnectTimeout(TIMEOUT_MS);
-            conn.setReadTimeout(TIMEOUT_MS);
-            if (conn.getResponseCode() != 200) return null;
-            return readStream(conn.getInputStream());
-        } catch (Exception e) { return null; }
-    }
 
     private String doPost(String urlStr, String body) {
         try {
