@@ -10,6 +10,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
+import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
@@ -145,19 +146,30 @@ public final class UiController {
         routeTable.setMinHeight(80);
         mapOverlay.setMinHeight(150);
 
+        Region dragHandle = buildSplitDragHandle();
+        VBox tableArea = new VBox(dragHandle, routeTable);
+        VBox.setVgrow(routeTable, Priority.ALWAYS);
+
         SplitPane splitV = new SplitPane();
         splitV.setOrientation(Orientation.VERTICAL);
-        splitV.getItems().addAll(mapOverlay, routeTable);
+        splitV.getItems().addAll(mapOverlay, tableArea);
         splitV.setDividerPositions(0.75);
         VBox.setVgrow(splitV, Priority.ALWAYS);
 
         // Let both map and table resize freely when dragging the divider.
         SplitPane.setResizableWithParent(mapOverlay, true);
-        SplitPane.setResizableWithParent(routeTable, true);
+        SplitPane.setResizableWithParent(tableArea, true);
         splitV.getDividers().get(0).positionProperty().addListener((obs, oldV, newV) -> {
             double p = newV.doubleValue();
             if (p < DIVIDER_MIN) splitV.setDividerPositions(DIVIDER_MIN);
             else if (p > DIVIDER_MAX) splitV.setDividerPositions(DIVIDER_MAX);
+        });
+        dragHandle.setOnMouseDragged(e -> {
+            Point2D p = splitV.sceneToLocal(e.getSceneX(), e.getSceneY());
+            if (splitV.getHeight() <= 0) return;
+            double next = p.getY() / splitV.getHeight();
+            next = Math.max(DIVIDER_MIN, Math.min(DIVIDER_MAX, next));
+            splitV.setDividerPositions(next);
         });
 
         root.setCenter(splitV);
@@ -751,5 +763,14 @@ public final class UiController {
             }
         }
         return selected;
+    }
+
+    private Region buildSplitDragHandle() {
+        Region handle = new Region();
+        handle.getStyleClass().add("split-drag-handle");
+        handle.setMinHeight(8);
+        handle.setPrefHeight(8);
+        handle.setMaxHeight(8);
+        return handle;
     }
 }

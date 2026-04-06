@@ -51,6 +51,15 @@
     -fx-background-color: #90a4ae;
 }
 
+.split-drag-handle {
+    -fx-background-color: #b0bec5;
+    -fx-cursor: v-resize;
+}
+
+.split-drag-handle:hover {
+    -fx-background-color: #78909c;
+}
+
 /* ── ScrollPane ──────────────────────────────────────────────────────────── */
 .scroll-pane {
     -fx-background-color: transparent;
