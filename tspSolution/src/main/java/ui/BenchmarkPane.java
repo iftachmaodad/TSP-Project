@@ -12,6 +12,7 @@ import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
+import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
@@ -45,6 +46,8 @@ import java.util.stream.Collectors;
  * via {@link Platform#runLater}.
  */
 public final class BenchmarkPane {
+    private static final double DIVIDER_MIN = 0.30;
+    private static final double DIVIDER_MAX = 0.93;
 
     // ── Root ─────────────────────────────────────────────────────────────────
     private final BorderPane root = new BorderPane();
@@ -237,10 +240,28 @@ public final class BenchmarkPane {
         // ── Right panel ────────────────────────────────────────
         SplitPane splitV = new SplitPane();
         splitV.setOrientation(Orientation.VERTICAL);
-        splitV.getItems().addAll(map, table);
+        Region dragHandle = buildSplitDragHandle();
+        VBox tableArea = new VBox(dragHandle, table);
+        VBox.setVgrow(table, Priority.ALWAYS);
+
+        splitV.getItems().addAll(map, tableArea);
         splitV.setDividerPositions(0.65);
         map.setMinHeight(150);
         table.setMinHeight(80);
+        SplitPane.setResizableWithParent(map, true);
+        SplitPane.setResizableWithParent(tableArea, true);
+        splitV.getDividers().get(0).positionProperty().addListener((obs, oldV, newV) -> {
+            double p = newV.doubleValue();
+            if (p < DIVIDER_MIN) splitV.setDividerPositions(DIVIDER_MIN);
+            else if (p > DIVIDER_MAX) splitV.setDividerPositions(DIVIDER_MAX);
+        });
+        dragHandle.setOnMouseDragged(e -> {
+            Point2D p = splitV.sceneToLocal(e.getSceneX(), e.getSceneY());
+            if (splitV.getHeight() <= 0) return;
+            double next = p.getY() / splitV.getHeight();
+            next = Math.max(DIVIDER_MIN, Math.min(DIVIDER_MAX, next));
+            splitV.setDividerPositions(next);
+        });
 
         root.setLeft(left);
         root.setCenter(splitV);
@@ -375,6 +396,15 @@ public final class BenchmarkPane {
         TableColumn<BenchRow, String> c = new TableColumn<>(header);
         c.setCellValueFactory(cd -> new SimpleStringProperty(getter.apply(cd.getValue())));
         return c;
+    }
+
+    private Region buildSplitDragHandle() {
+        Region handle = new Region();
+        handle.getStyleClass().add("split-drag-handle");
+        handle.setMinHeight(8);
+        handle.setPrefHeight(8);
+        handle.setMaxHeight(8);
+        return handle;
     }
 
     // ══════════════════════════════════════════════════════════

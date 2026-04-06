@@ -10,6 +10,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
+import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
@@ -51,6 +52,8 @@ import java.util.function.Consumer;
  * back via {@link javafx.application.Platform#runLater}.
  */
 public final class UiController {
+    private static final double DIVIDER_MIN = 0.30;
+    private static final double DIVIDER_MAX = 0.93;
 
     private final BorderPane root = new BorderPane();
 
@@ -141,18 +144,33 @@ public final class UiController {
         StackPane.setMargin(loadingSpinner, new Insets(10));
 
         routeTable.setMinHeight(80);
-        routeTable.setMaxHeight(260);  // prevents table pushing map off screen
         mapOverlay.setMinHeight(150);
+
+        Region dragHandle = buildSplitDragHandle();
+        VBox tableArea = new VBox(dragHandle, routeTable);
+        VBox.setVgrow(routeTable, Priority.ALWAYS);
 
         SplitPane splitV = new SplitPane();
         splitV.setOrientation(Orientation.VERTICAL);
-        splitV.getItems().addAll(mapOverlay, routeTable);
+        splitV.getItems().addAll(mapOverlay, tableArea);
         splitV.setDividerPositions(0.75);
         VBox.setVgrow(splitV, Priority.ALWAYS);
 
-        // The map takes all extra space when the window is resized;
-        // the route table keeps its preferred height rather than expanding.
-        SplitPane.setResizableWithParent(routeTable, false);
+        // Let both map and table resize freely when dragging the divider.
+        SplitPane.setResizableWithParent(mapOverlay, true);
+        SplitPane.setResizableWithParent(tableArea, true);
+        splitV.getDividers().get(0).positionProperty().addListener((obs, oldV, newV) -> {
+            double p = newV.doubleValue();
+            if (p < DIVIDER_MIN) splitV.setDividerPositions(DIVIDER_MIN);
+            else if (p > DIVIDER_MAX) splitV.setDividerPositions(DIVIDER_MAX);
+        });
+        dragHandle.setOnMouseDragged(e -> {
+            Point2D p = splitV.sceneToLocal(e.getSceneX(), e.getSceneY());
+            if (splitV.getHeight() <= 0) return;
+            double next = p.getY() / splitV.getHeight();
+            next = Math.max(DIVIDER_MIN, Math.min(DIVIDER_MAX, next));
+            splitV.setDividerPositions(next);
+        });
 
         root.setCenter(splitV);
         fullPanel    = buildFullPanel();
@@ -465,9 +483,8 @@ public final class UiController {
         placeSearch.searchBundledOnly(west, south, east, north, type, markers -> {
             List<MapMarker> result = filterAdded(markers);
             sortPins(result);
-            List<MapMarker> capped =
-                    result.size() > cap ? new ArrayList<>(result.subList(0, cap)) : result;
-            mapPane.setOverlayMarkers(capped);
+            mapPane.setOverlayMarkers(
+                    capPinsForViewport(result, cap, west, south, east, north));
         });
     }
 
@@ -513,7 +530,7 @@ public final class UiController {
             List<MapMarker> result = filterAdded(markers);
             sortPins(result);
             List<MapMarker> capped =
-                    result.size() > cap ? new ArrayList<>(result.subList(0, cap)) : result;
+                    capPinsForViewport(result, cap, west, south, east, north);
 
             long remaining = Math.max(0, 350 - (System.currentTimeMillis() - startMs));
             PauseTransition delay = new PauseTransition(Duration.millis(remaining));
@@ -693,15 +710,67 @@ public final class UiController {
     // ══════════════════════════════════════════════════════════
 
     /**
-     * Sorts overlay pins by importance descending — the most globally significant
-     * places always shown first regardless of viewport position.
-     *
-     * <p>A proximity-weighted sort was previously used when zoomed in, but it caused
-     * clumping: many low-importance places clustered near the viewport centre would
-     * push high-importance cities off screen. Pure importance sort is consistent
-     * whether pins came from the bundled data or from Overpass.
+     * Sorts overlay pins by importance descending.
+     * A later selection pass enforces geographic spread before capping.
      */
     private static void sortPins(List<MapMarker> list) {
         list.sort((a, b) -> Double.compare(b.importance(), a.importance()));
+    }
+
+    /**
+     * Selects up to {@code cap} markers with geographic spread.
+     *
+     * <p>The input list is expected to be pre-sorted by importance descending.
+     * The first pass applies a minimum angular separation; a second pass backfills
+     * any remaining slots to always return up to {@code cap} markers.
+     */
+    private static List<MapMarker> capPinsForViewport(
+            List<MapMarker> markers, int cap,
+            double west, double south, double east, double north) {
+        if (markers.isEmpty() || cap <= 0) return List.of();
+        if (markers.size() <= cap) return new ArrayList<>(markers);
+
+        double spanLon = west <= east ? (east - west) : (360.0 - west + east);
+        double spanLat = Math.max(0.001, north - south);
+        double minSepLon = Math.max(0.25, Math.min(6.0, spanLon / 8.0));
+        double minSepLat = Math.max(0.20, Math.min(4.0, spanLat / 8.0));
+
+        List<MapMarker> selected = new ArrayList<>(cap);
+
+        for (MapMarker m : markers) {
+            boolean tooClose = false;
+            for (MapMarker s : selected) {
+                double dLon = Math.abs(m.lon() - s.lon());
+                dLon = Math.min(dLon, 360.0 - dLon); // handle dateline wrap
+                double dLat = Math.abs(m.lat() - s.lat());
+                if (dLon < minSepLon && dLat < minSepLat) {
+                    tooClose = true;
+                    break;
+                }
+            }
+            if (!tooClose) {
+                selected.add(m);
+                if (selected.size() == cap) return selected;
+            }
+        }
+
+        // Backfill to cap so sparse viewports still show as many as possible.
+        if (selected.size() < cap) {
+            for (MapMarker m : markers) {
+                if (selected.contains(m)) continue;
+                selected.add(m);
+                if (selected.size() == cap) break;
+            }
+        }
+        return selected;
+    }
+
+    private Region buildSplitDragHandle() {
+        Region handle = new Region();
+        handle.getStyleClass().add("split-drag-handle");
+        handle.setMinHeight(8);
+        handle.setPrefHeight(8);
+        handle.setMaxHeight(8);
+        return handle;
     }
 }
