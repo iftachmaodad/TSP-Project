@@ -6,7 +6,51 @@ The project lives in the `tspSolution/` Maven module.
 
 ---
 
-## Quick start
+## Project structure
+
+```
+tspSolution/src/
+├── main/
+│   ├── java/
+│   │   ├── benchmark/     TestInstance, TestInstanceLibrary, SolverBenchmark
+│   │   ├── data/          Matrix, AirDistanceProvider, GroundDistanceProvider,
+│   │   │                  OsrmClient, OsrmParser, DistanceProvider
+│   │   ├── domain/        City (abstract), AirCity, GroundCity,
+│   │   │                  CityFactory, CityRegistry
+│   │   ├── model/         Route
+│   │   ├── solver/        Solver, BruteForceSolver, SlackInsertion2OptSolver,
+│   │   │                  SlackInsertionSolver, NearestNeighborSolver,
+│   │   │                  RouteEvaluator, RouteImprover, SolverUtils, Insertion
+│   │   ├── tools/         FetchPlacesData  (one-time Overpass data fetcher)
+│   │   └── ui/            TspApp, UiController, CityPanel, SolverPanel,
+│   │                      BenchmarkPane, MapViewPane, OsmTileLayer,
+│   │                      PlaceSearchService, MapMarker
+│   └── resources/
+│       ├── places.json              Bundled ~200 world cities + airports
+│       ├── cache/
+│       │   ├── places_cache.json    Overpass-fetched pins (grows over time)
+│       │   └── osrm_cache.json      OSRM road distance cache (append-only JSONL)
+│       ├── images/world.jpg         Offline fallback map (equirectangular)
+│       └── styles/app.css           Application stylesheet
+└── test/
+    └── java/
+        ├── data/          DistanceProviderTest, MatrixTest, OsrmParserTest
+        ├── domain/        CityTest
+        ├── misc/          MiscTest
+        ├── model/         RouteTest
+        └── solver/        SolverTest, SolverUtilsTest
+```
+
+---
+
+## Requirements
+
+- **Java 21** or later
+- **Maven 3.8+**
+- Internet connection for live map tiles (ESRI), place pins (Overpass), road distances (OSRM), and place search (Nominatim)
+- Offline mode is available: disabling "Live map tiles" uses a bundled world map image
+
+---
 
 From repository root:
 
