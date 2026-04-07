@@ -22,11 +22,18 @@ Two transport modes are supported:
 | Solver | Complexity | Guarantee |
 |--------|-----------|-----------|
 | `BruteForceSolver` | O(n!) | **Exact optimal** — refuses n > 10 non-start cities |
-| `SlackInsertion2OptSolver` | O(n² × passes) | Best heuristic — multi-start + relocate + 2-opt |
-| `SlackInsertionSolver` | O(n²) | Fast single-pass slack insertion |
+| `SlackInsertion2OptSolver` | O(n² × passes) | Best heuristic — multi-start construction + full local search |
+| `SlackInsertionSolver` | O(n²) | Fast single-pass construction baseline, no local search |
 | `NearestNeighborSolver` | O(n²) | Greedy baseline |
 
 **Slack-based insertion:** deadline cities are sorted by `slack = deadline − directTravelTime(start → city)` and inserted tightest-first before flexible cities, preserving feasibility throughout construction.
+
+**Local search operators** (applied by `SlackInsertion2OptSolver`):
+- **Relocate** — moves one city to its cheapest feasible position. O(n²) per pass.
+- **2-opt** — reverses a sub-sequence when doing so reduces distance. A distance-delta filter skips pairs that cannot improve before doing the full O(n) evaluation.
+- **Or-opt** — relocates chains of 2 or 3 consecutive cities. Finds improvements that relocate and 2-opt both miss. O(n²) per pass.
+
+All three operators use first-improvement strategy and run interleaved until no pass yields further improvement or the pass limit is reached.
 
 ---
 
@@ -56,7 +63,7 @@ src/
 │       │   └── osrm_cache.json      OSRM road distance cache (append-only JSONL)
 │       ├── images/
 │       │   ├── world.jpg            Offline fallback map (equirectangular)
-│       │   ├── tsp-icon-600.png     Application icon (600x600)
+│       │   ├── tsp-icon-600.png     Application icon (600×600)
 │       │   └── tsp-icon-300.png     Application icon (300×300)
 │       └── styles/app.css           Application stylesheet
 └── test/
@@ -65,7 +72,7 @@ src/
         ├── domain/        CityTest
         ├── misc/          MiscTest
         ├── model/         RouteTest
-        └── solver/        SolverTest, SolverUtilsTest
+        └── solver/        SolverTest, SolverQualityTest, SolverUtilsTest
 ```
 
 ---
@@ -161,9 +168,11 @@ Both A→B and B→A keys are stored after a single fetch. Loaded into a `Concur
 
 ## Key design decisions
 
-**City is immutable.** Removing a deadline works by replacing the city in the shared list with a no-deadline copy created via `CityFactory`. This keeps `City` a pure value type and makes `Route`'s deadline tracking correct by construction.
+**City is immutable and final.** `AirCity` and `GroundCity` are `final` value types. Removing a deadline works by replacing the city in the shared list with a no-deadline copy created via `CityFactory`. This keeps `City` a pure value type and makes `Route`'s deadline tracking correct by construction.
 
 **Matrix pre-computes all pairwise distances.** Before each solve, `Matrix.populateMatrix()` fetches all n(n−1)/2 distances from the registered `DistanceProvider`. Solvers then read from the 2D array in O(1) — no repeated API calls during path evaluation.
+
+**Two solvers, clearly separated roles.** `SlackInsertionSolver` is a pure construction heuristic with no local search — it exists as a fast baseline that shows what insertion alone achieves. `SlackInsertion2OptSolver` adds multi-start search (3 deterministic orderings + 25 random shuffles) and full local search (relocate + 2-opt + or-opt), making the quality difference between the two meaningful and measurable in the benchmark.
 
 **Singleton `PlaceSearchService`.** The bundled and cached place lists are static. The `INSTANCE` field is declared after the `static {}` initializer block so `places.json` is fully loaded before the singleton is exposed.
 
