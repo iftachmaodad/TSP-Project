@@ -7,7 +7,7 @@ package domain;
  * All distance and time calculations are delegated to
  * {@link data.AirDistanceProvider} via {@link CityRegistry}.
  */
-public class AirCity extends City {
+public final class AirCity extends City {
 
     public AirCity(double x, double y)                             { super(x, y); }
     public AirCity(double x, double y, double deadline)            { super(x, y, deadline); }

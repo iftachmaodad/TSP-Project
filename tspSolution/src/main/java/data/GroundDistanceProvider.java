@@ -92,6 +92,10 @@ public final class GroundDistanceProvider implements DistanceProvider {
         if (cached != null) return cached;
 
         String json = client.fetch(a.getX(), a.getY(), b.getX(), b.getY());
+        if (json == null) {
+            return new OsrmResult(Double.NaN, Double.NaN);
+        }
+
         OsrmResult result = new OsrmResult(
                 parser.extractDistance(json), parser.extractDuration(json));
 

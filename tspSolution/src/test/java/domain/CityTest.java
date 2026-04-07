@@ -68,6 +68,22 @@ class CityTest {
     }
 
     @Test
+    void nan_deadline_treated_as_no_deadline() {
+        AirCity c = new AirCity("X", 35.0, 32.0, Double.NaN);
+        assertFalse(c.hasDeadline(),
+                "NaN deadline must be treated as no deadline, not stored as-is");
+        assertEquals(City.NO_DEADLINE, c.getDeadline(), 1e-9);
+    }
+
+    @Test
+    void infinite_deadline_treated_as_no_deadline() {
+        AirCity c = new AirCity("X", 35.0, 32.0, Double.POSITIVE_INFINITY);
+        assertFalse(c.hasDeadline(),
+                "Infinite deadline must be treated as no deadline");
+        assertEquals(City.NO_DEADLINE, c.getDeadline(), 1e-9);
+    }
+
+    @Test
     void no_deadline_when_not_specified() {
         AirCity c = new AirCity("X", 35.0, 32.0);
         assertFalse(c.hasDeadline());

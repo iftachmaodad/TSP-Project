@@ -147,7 +147,6 @@ public final class BenchmarkPane {
             }
         }
 
-        if (sessionRows.isEmpty()) sessionCounter = 0;
         String name = "Session " + (++sessionCounter);
         TestInstance<AirCity> inst =
                 new TestInstance<>(name, List.copyOf(airCities), airStart);
@@ -498,6 +497,7 @@ public final class BenchmarkPane {
                     statusLabel.setText(
                             "Running\u2026 (" + done[0] + " / " + total + " done)");
                     if (done[0] == total) {
+                        recomputeGaps();
                         setRunning(false);
                         statusLabel.setText("Done. Click a row to see its route on the map.");
                         for (BenchRow r : rows) {

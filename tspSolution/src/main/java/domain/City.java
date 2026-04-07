@@ -66,11 +66,11 @@ public abstract class City {
      * @param x        longitude [−180, 180]; clamped if out of range
      * @param y        latitude  [−90,  90];  clamped if out of range
      * @param deadline arrival deadline in seconds from departure;
-     *                 non-positive values are treated as {@link #NO_DEADLINE}
+     *                 non-positive, infinite, or NaN values are treated as
+     *                 {@link #NO_DEADLINE}
      */
     protected City(String id, double x, double y, double deadline) {
 
-        // Clamp out-of-range coordinates and warn.
         double cx = x, cy = y;
         if (x < -180 || x > 180 || y < -90 || y > 90) {
             System.err.println("[City] WARNING: coordinates (" + x + ", " + y
@@ -84,7 +84,10 @@ public abstract class City {
                 ? generateDefaultId()
                 : id.trim();
 
-        double resolvedDeadline = (deadline <= 0) ? NO_DEADLINE : deadline;
+        double resolvedDeadline =
+                (Double.isNaN(deadline) || !Double.isFinite(deadline) || deadline <= 0)
+                ? NO_DEADLINE
+                : deadline;
 
         this.id       = resolvedId;
         this.x        = cx;
@@ -95,19 +98,19 @@ public abstract class City {
     // ── Public API ────────────────────────────────────────────────────────────
 
     /** Returns {@code true} if this city carries a deadline constraint. */
-    public boolean hasDeadline() { return deadline != NO_DEADLINE; }
+    public final boolean hasDeadline() { return deadline != NO_DEADLINE; }
 
     /** Returns the display ID. Never {@code null} or blank. */
-    public String getID()       { return id; }
+    public final String getID()       { return id; }
 
     /** Returns the longitude. */
-    public double getX()        { return x; }
+    public final double getX()        { return x; }
 
     /** Returns the latitude. */
-    public double getY()        { return y; }
+    public final double getY()        { return y; }
 
     /** Returns the deadline in seconds, or {@link #NO_DEADLINE} if unconstrained. */
-    public double getDeadline() { return deadline; }
+    public final double getDeadline() { return deadline; }
 
     // ── Object overrides ──────────────────────────────────────────────────────
 
@@ -128,7 +131,6 @@ public abstract class City {
 
     @Override
     public int hashCode() {
-        // Round to ~0.1 mm precision to match the equals tolerance.
         return Objects.hash(Math.round(x * 1e6), Math.round(y * 1e6));
     }
 

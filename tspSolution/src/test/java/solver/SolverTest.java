@@ -93,6 +93,27 @@ class SolverTest {
         assertEquals(3, r.size(), "path = [start, other, start]");
     }
 
+    // ── triangle (3 cities) ───────────────────────────────────────────────────
+
+    @Test
+    void all_solvers_find_valid_route_on_triangle() {
+        var inst = TestInstanceLibrary.triangle();
+        Matrix<AirCity> m = matrix(inst.cities());
+        AirCity s = inst.startCity();
+        assertTrue(brute(m).solve(s).isValid(),  "brute");
+        assertTrue(opt2(m) .solve(s).isValid(),  "2-opt");
+        assertTrue(slack(m).solve(s).isValid(),  "slack");
+        assertTrue(nn(m)   .solve(s).isValid(),  "nn");
+    }
+
+    @Test
+    void triangle_route_visits_all_cities() {
+        var inst = TestInstanceLibrary.triangle();
+        Route<AirCity> r = brute(matrix(inst.cities())).solve(inst.startCity());
+        assertEquals(inst.size() + 1, r.size(),
+                "Closed route path must have n+1 entries (start appears twice)");
+    }
+
     // ── five_city ─────────────────────────────────────────────────────────────
 
     @Test
@@ -214,6 +235,16 @@ class SolverTest {
         List<AirCity> path = r.getPath();
         assertEquals(inst.startCity(), path.get(0),               "must start at depot");
         assertEquals(inst.startCity(), path.get(path.size() - 1), "must close at depot");
+    }
+
+    @Test
+    void nearest_neighbour_visits_all_cities_when_no_deadlines() {
+        var inst = TestInstanceLibrary.eightCity();
+        Route<AirCity> r = nn(matrix(inst.cities())).solve(inst.startCity());
+        assertTrue(r.isValid(), "route must be valid");
+        assertEquals(inst.size() + 1, r.size(),
+                "NN must visit every city when none have deadlines; "
+                + "path size should be n+1 (start appears twice)");
     }
 
     // ── RouteEvaluator ────────────────────────────────────────────────────────

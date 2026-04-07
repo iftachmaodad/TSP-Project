@@ -9,9 +9,10 @@ package domain;
  * the OSRM routing API.
  *
  * <p>When no address is supplied, a fallback {@code "lat, lon"} string is
- * generated automatically so that display code always has a non-null value.
+ * generated automatically using the stored (post-clamping) coordinates so
+ * that display code always has a non-null, consistent value.
  */
-public class GroundCity extends City {
+public final class GroundCity extends City {
 
     private final String address;
 
@@ -23,7 +24,7 @@ public class GroundCity extends City {
     public GroundCity(String id, double x, double y, double deadline, String address) {
         super(id, x, y, deadline);
         this.address = (address == null || address.isBlank())
-                ? String.format("%.6f, %.6f", y, x)   // use raw params, not getY()/getX()
+                ? String.format("%.6f, %.6f", getY(), getX())
                 : address;
     }
 
