@@ -32,14 +32,16 @@ import java.util.Random;
  *       <ol type="a">
  *         <li>Build {@code [start, urgent…, start]} and evaluate.</li>
  *         <li>If valid, greedily insert flexible cities.</li>
- *         <li>Apply {@value #IMPROVEMENT_PASSES} passes of relocate + 2-opt.</li>
+ *         <li>Apply {@value #IMPROVEMENT_PASSES} passes of relocate, 2-opt,
+ *             and or-opt.</li>
  *         <li>Track the best valid route across all orderings.</li>
  *       </ol>
  *   </li>
  *   <li>Return the best valid route, or the best invalid route if none exists.</li>
  * </ol>
  *
- * <p>For a single-pass, faster variant see {@link SlackInsertionSolver}.
+ * <p>For a single-pass construction baseline with no local search see
+ * {@link SlackInsertionSolver}.
  *
  * @param <T> the concrete city subtype
  */
@@ -120,15 +122,12 @@ public final class SlackInsertion2OptSolver<T extends City> implements Solver<T>
             routeOrder.addAll(urgentOrder);
             routeOrder.add(startCity);
 
-            // Check that the urgent-cities-only sub-route is valid.
-            if (!RouteEvaluator.evaluate(routeOrder, matrix).isValid()) {
-                bestInvalid = SolverUtils.chooseBetterInvalid(
-                        bestInvalid,
-                        RouteEvaluator.evaluate(routeOrder, matrix));
+            Route<T> urgentRoute = RouteEvaluator.evaluate(routeOrder, matrix);
+            if (!urgentRoute.isValid()) {
+                bestInvalid = SolverUtils.chooseBetterInvalid(bestInvalid, urgentRoute);
                 continue;
             }
 
-            // Insert flexible cities and improve.
             SolverUtils.greedyInsertAll(routeOrder, matrix, new ArrayList<>(flexible));
             RouteImprover.improveClosedValid(routeOrder, matrix, IMPROVEMENT_PASSES);
 
@@ -146,7 +145,7 @@ public final class SlackInsertion2OptSolver<T extends City> implements Solver<T>
         // ── 5. Return result ──────────────────────────────────────────────────
         if (bestValid != null) {
             bestValid.setDebugLog(
-                    "Valid route found (multi-start slack-insertion + 2-opt, "
+                    "Valid route found (multi-start slack-insertion + local search, "
                     + (3 + RANDOM_TRIES) + " orderings tried).");
             return bestValid;
         }

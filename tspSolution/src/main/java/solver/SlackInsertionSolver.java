@@ -21,12 +21,12 @@ import java.util.List;
  *       (smallest {@code deadline − directTravelTime}), each at the cheapest
  *       feasible position. Returns INVALID immediately if any urgent city has
  *       no feasible insertion.</li>
- *   <li><strong>Insert flexible cities</strong> greedily (cheapest feasible
- *       position).</li>
- *   <li><strong>Improve</strong> with two passes of relocate + 2-opt.</li>
+ *   <li><strong>Insert flexible cities</strong> greedily at the cheapest
+ *       feasible position.</li>
  * </ol>
  *
- * <p>For a stronger (multi-start, more passes) variant see
+ * <p>No local search is applied. This solver exists as a fast construction
+ * baseline; for a stronger variant with multi-start and local search see
  * {@link SlackInsertion2OptSolver}.
  *
  * @param <T> the concrete city subtype
@@ -100,10 +100,7 @@ public final class SlackInsertionSolver<T extends City> implements Solver<T> {
         List<T> uninserted =
                 SolverUtils.greedyInsertAll(routeOrder, matrix, flexible);
 
-        // ── 5. Local improvement ──────────────────────────────────────────────
-        RouteImprover.improveClosedValid(routeOrder, matrix, 2);
-
-        // ── 6. Evaluate and annotate ──────────────────────────────────────────
+        // ── 5. Evaluate and annotate ──────────────────────────────────────────
         Route<T> result = RouteEvaluator.evaluate(routeOrder, matrix);
 
         if (result.isValid()) {
@@ -112,7 +109,7 @@ public final class SlackInsertionSolver<T extends City> implements Solver<T> {
                     : "Valid route found; " + uninserted.size()
                     + " flexible city/cities excluded to preserve deadlines.");
         } else {
-            result.setDebugLog("Route became invalid after improvement (slack insertion, fast).");
+            result.setDebugLog("Route invalid after construction (slack insertion, fast).");
         }
 
         return result;
