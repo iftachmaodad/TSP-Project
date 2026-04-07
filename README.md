@@ -81,7 +81,7 @@ src/
 
 ## Running the application
 
-A `run.bat` launcher is included in the project root for Windows. Double-click it for an interactive menu:
+A `tspApp.bat` launcher is included in the project root for Windows. Double-click it for an interactive menu:
 
 ```
 [1]  Run Application
