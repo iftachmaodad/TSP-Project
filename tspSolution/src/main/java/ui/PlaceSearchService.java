@@ -5,7 +5,6 @@ import javafx.application.Platform;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
@@ -17,23 +16,21 @@ import java.util.function.Consumer;
  * <ol>
  *   <li><b>Bundled data</b> — {@code /places.json} loaded at startup (~200 world
  *       cities and airports). Always available, instant, no network.</li>
- *   <li><b>Disk cache</b> — {@code cache/places_cache.json}, written by this
- *       class and read at startup. Grows over time as new areas are explored.
- *       Survives app restarts.</li>
- *   <li><b>Overpass API</b> — queried when the combined local+cache data has
- *       fewer than {@value #MIN_PINS} pins in the visible area. Results are
- *       saved to the disk cache so the same area is never fetched twice.</li>
+ *   <li><b>Session cache</b> — Overpass results fetched during this session are
+ *       stored in memory (LRU, {@value #CACHE_MAX} grid cells) and merged into
+ *       {@code ALL_PLACES} / {@code AIR_PLACES}. The same grid cell is never
+ *       fetched more than once per session. Cache is cleared on process exit.</li>
+ *   <li><b>Overpass API</b> — queried when the combined bundled + session data
+ *       has fewer than {@value #MIN_PINS} pins in the visible area.</li>
  * </ol>
  *
  * <h3>Singleton</h3>
- * Use {@link #INSTANCE}. The bundled and disk-cached place lists are static
- * (shared across the JVM), so instantiating multiple copies would create
- * redundant background threads without benefit.
- *
+ * Use {@link #INSTANCE}. The bundled place list is static (shared across the
+ * JVM), so instantiating multiple copies would create redundant background
+ * threads without benefit.
  *
  * <h3>Thread safety</h3>
  * All Overpass calls run on a single background thread.
- * Disk writes also happen on that thread so they never block the FX thread.
  */
 public final class PlaceSearchService {
 
@@ -47,19 +44,13 @@ public final class PlaceSearchService {
     // ── In-memory Overpass cell cache (LRU, 30 cells) ─────────────────────────
     private static final int CACHE_MAX = 30;
 
-    // ── Bundled + disk-cached place data ─────────────────────────────────────
+    // ── Bundled place data ────────────────────────────────────────────────────
     private static final List<MapMarker> ALL_PLACES = new ArrayList<>();
     private static final List<MapMarker> AIR_PLACES = new ArrayList<>();
 
-    /** Path to the disk cache file; null if it cannot be resolved. */
-    private static final Path DISK_CACHE_PATH = resolveCachePath();
-
-    // Load bundled places.json and disk cache BEFORE exposing INSTANCE.
-    // Static fields and static blocks run in declaration order in Java — INSTANCE
-    // must be last so the lists are fully populated when it is first accessed.
+    // Load bundled places.json BEFORE exposing INSTANCE.
     static {
         loadBundled();
-        loadDiskCache();
     }
 
     /**
@@ -100,7 +91,7 @@ public final class PlaceSearchService {
 
 
     /**
-     * Returns pins from the bundled {@code places.json} and disk cache only —
+     * Returns pins from the bundled {@code places.json} only —
      * never touches the network. Safe to call on every viewport change.
      *
      * <p>The callback always fires synchronously on the calling thread
@@ -161,8 +152,24 @@ public final class PlaceSearchService {
                 overpassCache.put(cellKey, fetched);
             }
 
-            // Persist new markers to disk so they survive app restarts.
-            appendToDiskCache(fetched, isAir);
+            // Merge into the flat lists so bundled-only refreshes (fired on every
+            // viewport change) also find these pins without a second Overpass call.
+            if (!fetched.isEmpty()) {
+                synchronized (ALL_PLACES) {
+                    for (MapMarker m : fetched) {
+                        boolean dup = false;
+                        for (MapMarker existing : ALL_PLACES) {
+                            double dx = existing.lon() - m.lon();
+                            double dy = existing.lat() - m.lat();
+                            if (dx * dx + dy * dy < 0.0004) { dup = true; break; }
+                        }
+                        if (!dup) {
+                            ALL_PLACES.add(m);
+                            if (isAir) AIR_PLACES.add(m);
+                        }
+                    }
+                }
+            }
 
             List<MapMarker> merged = merge(local, fetched, west, south, east, north);
             Platform.runLater(() -> onResult.accept(merged));
@@ -188,26 +195,6 @@ public final class PlaceSearchService {
                     + " places, " + AIR_PLACES.size() + " airports.");
         } catch (Exception e) {
             System.err.println("[PlaceSearch] Failed to load places.json: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Loads {@code cache/places_cache.json} from disk (if it exists) and
-     * merges its entries into {@link #ALL_PLACES} / {@link #AIR_PLACES},
-     * deduplicating against what was already loaded from the bundle.
-     */
-    private static void loadDiskCache() {
-        if (DISK_CACHE_PATH == null || !Files.exists(DISK_CACHE_PATH)) return;
-        try {
-            String json = Files.readString(DISK_CACHE_PATH, StandardCharsets.UTF_8);
-            int before = ALL_PLACES.size();
-            parsePlacesJson(json, true /* deduplicate */);
-            int added = ALL_PLACES.size() - before;
-            if (added > 0) {
-                System.out.println("[PlaceSearch] Disk cache: +" + added + " places.");
-            }
-        } catch (Exception e) {
-            System.err.println("[PlaceSearch] Failed to load places cache: " + e.getMessage());
         }
     }
 
@@ -250,110 +237,6 @@ public final class PlaceSearchService {
                 if (isAirport) AIR_PLACES.add(m);
             } catch (NumberFormatException ignored) {}
         });
-    }
-
-    // ══════════════════════════════════════════════════════════
-    // Disk cache writes
-    // ══════════════════════════════════════════════════════════
-
-    /**
-     * Appends newly fetched Overpass markers to the disk cache and to the
-     * in-memory lists. Only markers not already present (within ~200 m of any
-     * known entry) are written.
-     *
-     * <p>Strategy: append only the novel entries to the existing cache JSON
-     * array rather than rewriting the whole file. This is O(novel) not O(all)
-     * and avoids re-serialising the bundled data on every fetch.
-     *
-     * <p>Called from the background worker thread — never blocks the FX thread.
-     */
-    private static void appendToDiskCache(List<MapMarker> markers, boolean isAirport) {
-        if (DISK_CACHE_PATH == null || markers.isEmpty()) return;
-
-        // Identify markers not already in ALL_PLACES.
-        List<MapMarker> novel = new ArrayList<>();
-        synchronized (ALL_PLACES) {
-            for (MapMarker m : markers) {
-                boolean dup = false;
-                for (MapMarker existing : ALL_PLACES) {
-                    double dx = existing.lon() - m.lon(), dy = existing.lat() - m.lat();
-                    if (dx * dx + dy * dy < 0.0004) { dup = true; break; }
-                }
-                if (!dup) novel.add(m);
-            }
-            if (novel.isEmpty()) return;
-
-            // Merge into in-memory lists under the same lock.
-            ALL_PLACES.addAll(novel);
-            if (isAirport) AIR_PLACES.addAll(novel);
-        }
-
-        // Append only the novel entries to the cache file.
-        // The file format is {"places":[…]} — we rewrite it fully but only
-        // with entries that came from Overpass (novel), not the bundled data.
-        // The bundled data is already in places.json and doesn't need duplicating.
-        // On load, parsePlacesJson() deduplicates both sources anyway.
-        try {
-            Files.createDirectories(DISK_CACHE_PATH.getParent());
-
-            // Read whatever was already cached on disk.
-            List<MapMarker> existing = new ArrayList<>();
-            if (Files.exists(DISK_CACHE_PATH)) {
-                String raw = Files.readString(DISK_CACHE_PATH, StandardCharsets.UTF_8);
-                // Parse existing cache entries.
-                int arrIdx = raw.indexOf("\"places\"");
-                if (arrIdx >= 0) {
-                    int arrStart = raw.indexOf('[', arrIdx);
-                    if (arrStart >= 0) {
-                        eachObject(raw.substring(arrStart), obj -> {
-                            String name  = extractField(obj, "name");
-                            String lonS  = extractField(obj, "lon");
-                            String latS  = extractField(obj, "lat");
-                            String impS  = extractField(obj, "imp");
-                            String type  = extractField(obj, "type");
-                            if (name == null || lonS == null || latS == null) return;
-                            try {
-                                existing.add(new MapMarker(name,
-                                        Double.parseDouble(lonS),
-                                        Double.parseDouble(latS),
-                                        impS != null ? Double.parseDouble(impS) : 0.5,
-                                        type != null ? type : "city"));
-                            } catch (NumberFormatException ignored) {}
-                        });
-                    }
-                }
-            }
-
-            // Combine existing cached entries + novel entries (no bundled data).
-            List<MapMarker> toWrite = new ArrayList<>(existing);
-            for (MapMarker m : novel) {
-                boolean dup = false;
-                for (MapMarker e : toWrite) {
-                    double dx = m.lon() - e.lon(), dy = m.lat() - e.lat();
-                    if (dx * dx + dy * dy < 0.0004) { dup = true; break; }
-                }
-                if (!dup) toWrite.add(m);
-            }
-
-            StringBuilder sb = new StringBuilder("{\"places\":[");
-            boolean first = true;
-            for (MapMarker m : toWrite) {
-                if (!first) sb.append(',');
-                first = false;
-                // airport flag: true if the marker came from an airport Overpass fetch
-                // or if its placeType is "airport".
-                boolean air = "airport".equals(m.placeType());
-                sb.append(String.format(
-                        "{\"name\":\"%s\",\"lon\":%.6f,\"lat\":%.6f," +
-                        "\"imp\":%.4f,\"type\":\"%s\",\"airport\":%b}",
-                        m.label().replace("\\", "\\\\").replace("\"", "\\\""),
-                        m.lon(), m.lat(), m.importance(), m.placeType(), air));
-            }
-            sb.append("]}");
-            Files.writeString(DISK_CACHE_PATH, sb, StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            System.err.println("[PlaceSearch] Failed to write places cache: " + e.getMessage());
-        }
     }
 
     // ══════════════════════════════════════════════════════════
@@ -461,24 +344,9 @@ public final class PlaceSearchService {
         return result;
     }
 
-    /**
-     * Resolves the path to {@code cache/places_cache.json} by finding where
-     * {@code /places.json} lives on disk and taking its parent directory.
-     * Returns null if the resource cannot be resolved to a real file (e.g.
-     * inside a sealed JAR).
-     */
-    private static Path resolveCachePath() {
-        try {
-            URL url = PlaceSearchService.class.getResource("/places.json");
-            if (url == null) return null;
-            Path resourcesDir = Path.of(url.toURI()).getParent();
-            return resourcesDir.resolve("cache/places_cache.json");
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    // ── Overpass JSON parsing ─────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════
+    // Overpass JSON parsing
+    // ══════════════════════════════════════════════════════════
 
     private static void eachElement(String json, Consumer<String> h) {
         if (json == null) return;

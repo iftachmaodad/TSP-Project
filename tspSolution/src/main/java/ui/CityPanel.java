@@ -54,7 +54,7 @@ public final class CityPanel {
     private final ListView<City>          cityListView  = new ListView<>();
 
     // ══════════════════════════════════════════════════════════
-    // Deadline input — three combined fields (days / hours / minutes)
+    // Deadline input — four combined fields (days / hours / minutes / seconds)
     // ══════════════════════════════════════════════════════════
 
     private final TextField deadlineDays    = new TextField();
@@ -75,10 +75,6 @@ public final class CityPanel {
     // --- Pending click state ---
     private double pendingLon = Double.NaN;
     private double pendingLat = Double.NaN;
-
-    // ══════════════════════════════════════════════════════════
-    // Deadline unit enum
-    // ══════════════════════════════════════════════════════════
 
     // ══════════════════════════════════════════════════════════
     // Constructor

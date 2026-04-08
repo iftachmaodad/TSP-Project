@@ -60,9 +60,6 @@ src/
 │   │                      PlaceSearchService, MapMarker, LocationMatchers
 │   └── resources/
 │       ├── places.json              Bundled ~200 world cities + airports
-│       ├── cache/
-│       │   ├── places_cache.json    Overpass-fetched pins (grows over time)
-│       │   └── osrm_cache.json      OSRM road distance cache (append-only JSONL)
 │       ├── images/
 │       │   ├── world.jpg            Offline fallback map (equirectangular)
 │       │   ├── tsp-icon-600.png     Application icon (600×600)
@@ -140,21 +137,17 @@ Overlay pins use a two-tier approach:
 
 **Bundled pins** (`places.json`) — ~200 world cities and airports loaded at startup. These refresh automatically on every viewport change (pan / zoom) with no network call.
 
-**Load More Pins button** — manually fetches additional pins from the Overpass API for the current viewport. Subject to a 5-second cooldown and a 10-call per-session limit. Results are saved to `cache/places_cache.json` so the same area is never fetched twice across sessions.
+**Load More Pins button** — manually fetches additional pins from the Overpass API for the current viewport. Subject to a 5-second cooldown and a 10-call per-session limit. Results are held in the session cache so the same area is never fetched again within the same session.
 
 ---
 
 ## Caching
 
-### Pin cache (`cache/places_cache.json`)
-Overpass-fetched place pins are written to this file after each "Load More Pins" request. On startup the file is merged with the bundled `places.json`, deduplicated by proximity (~200 m). Grows over time as new regions are explored.
+Both OSRM road distances and Overpass place pins are cached in memory for the duration of the session. The same city pair or map area is never fetched more than once per session. The cache is cleared automatically when the app closes — no files to manage, no stale data across restarts.
 
-### OSRM distance cache (`cache/osrm_cache.json`)
-Road distance and travel time results from the OSRM API are stored as one JSON object per line:
-```json
-{"key":"2.35220,48.85660→-0.12780,51.50740","dist":453621.4,"dur":18340.2}
-```
-Both A→B and B→A keys are stored after a single fetch. Loaded into a `ConcurrentHashMap` at startup. Survives app restarts so the same city pair is never fetched twice across sessions.
+**OSRM distance cache** — `GroundDistanceProvider` stores each city pair result in a `ConcurrentHashMap` keyed by `"lon1,lat1→lon2,lat2"`. Both A→B and B→A are stored after a single fetch. Fallback values (used when OSRM is unreachable) are not cached so they are retried when the network recovers.
+
+**Overpass pin cache** — `PlaceSearchService` stores Overpass results in an LRU map of up to 30 grid cells. The same 5°×5° grid cell is never fetched more than once per session. Bundled pins (`places.json`, ~200 world cities and airports) are loaded at startup and always available with no network call.
 
 ---
 
@@ -180,7 +173,7 @@ Both A→B and B→A keys are stored after a single fetch. Loaded into a `Concur
 
 **Invalid routes carry a partial path for diagnostics.** Solvers always return a non-null route. When construction fails, the best partial route built so far is returned marked INVALID rather than discarding it. On the map this is drawn in red; in the route detail dialog, cities with missed deadlines are highlighted. The exception is physical infeasibility detected before construction begins — in that case only the start city is in the path.
 
-**Singleton `PlaceSearchService`.** The bundled and cached place lists are static. The `INSTANCE` field is declared after the `static {}` initializer block so `places.json` is fully loaded before the singleton is exposed.
+**Singleton `PlaceSearchService`.** The bundled place list is static and loaded once at startup. The `INSTANCE` field is declared after the `static {}` initializer block so `places.json` is fully loaded before the singleton is exposed.
 
 **Two-phase pin loading.** Bundled pins refresh automatically on every viewport change (instant, no network). The "Load More Pins" button is the only path to Overpass — manual, with a 5-second cooldown and a 10-call session limit shown as a usage label.
 
