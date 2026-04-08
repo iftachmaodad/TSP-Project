@@ -174,14 +174,16 @@ class MiscTest {
 
     @Test
     void instance_sizes_match_documentation() {
-        assertEquals(2,  TestInstanceLibrary.trivial()    .size());
-        assertEquals(3,  TestInstanceLibrary.triangle()   .size());
-        assertEquals(5,  TestInstanceLibrary.fiveCity()   .size());
-        assertEquals(5,  TestInstanceLibrary.deadlines()  .size());
-        assertEquals(8,  TestInstanceLibrary.eightCity()  .size());
-        assertEquals(10, TestInstanceLibrary.tenCity()    .size());
-        assertEquals(20, TestInstanceLibrary.twentyCity() .size());
-        assertEquals(3,  TestInstanceLibrary.infeasible() .size());
+        assertEquals(2,  TestInstanceLibrary.trivial()            .size());
+        assertEquals(3,  TestInstanceLibrary.triangle()           .size());
+        assertEquals(5,  TestInstanceLibrary.fiveCity()           .size());
+        assertEquals(5,  TestInstanceLibrary.deadlines()          .size());
+        assertEquals(8,  TestInstanceLibrary.eightCity()          .size());
+        assertEquals(8,  TestInstanceLibrary.eightCityDeadlines() .size());
+        assertEquals(10, TestInstanceLibrary.tenCity()            .size());
+        assertEquals(10, TestInstanceLibrary.tenCityDeadlines()   .size());
+        assertEquals(20, TestInstanceLibrary.twentyCity()         .size());
+        assertEquals(3,  TestInstanceLibrary.infeasible()         .size());
     }
 
     @Test
@@ -193,8 +195,8 @@ class MiscTest {
     }
 
     @Test
-    void all_returns_eight_instances() {
-        assertEquals(8, TestInstanceLibrary.all().size());
+    void all_returns_ten_instances() {
+        assertEquals(10, TestInstanceLibrary.all().size());
     }
 
     @Test

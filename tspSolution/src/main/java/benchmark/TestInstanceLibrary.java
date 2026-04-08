@@ -72,7 +72,9 @@ public final class TestInstanceLibrary {
     public static List<TestInstance<AirCity>> all() {
         return List.of(
             trivial(), triangle(), fiveCity(), deadlines(),
-            eightCity(), tenCity(), twentyCity(), infeasible()
+            eightCity(), eightCityDeadlines(),
+            tenCity(), tenCityDeadlines(),
+            twentyCity(), infeasible()
         );
     }
 
@@ -126,6 +128,35 @@ public final class TestInstanceLibrary {
     }
 
     /**
+     * eight_city_deadlines — 8 cities, 3 with interacting deadlines.
+     *
+     * Deadlines are designed so that ordering matters: a naive greedy solver
+     * that visits Amsterdam before London will miss London's deadline.
+     *
+     * From Paris (direct travel times at 16.67 m/s):
+     *   Brussels:  15 835s direct. Deadline = 22 000s — must be visited early.
+     *   London:    20 609s direct. Deadline = 45 000s — feasible after Brussels
+     *              (Paris→Brussels→London = 35 069s) but missed if Amsterdam
+     *              is visited between them (Paris→Brussels→Amsterdam→London = 47 681s).
+     *   Amsterdam: 25 787s direct. Deadline = 90 000s — generous, reachable in any order.
+     *   Berlin, Zurich, Rome, Madrid: no deadline.
+     *
+     * Valid orderings must visit Brussels first, London second among deadline cities.
+     * BruteForce, SlackInsertion2OptSolver, and SlackInsertionSolver must find a
+     * valid route. NearestNeighborSolver is expected to fail due to lack of
+     * deadline-aware ordering.
+     */
+    public static TestInstance<AirCity> eightCityDeadlines() {
+        AirCity start      = paris();
+        AirCity brussels_  = new AirCity("Brussels",  4.3517,  50.8503, 22_000.0);
+        AirCity london_    = new AirCity("London",   -0.1278,  51.5074, 45_000.0);
+        AirCity amsterdam_ = new AirCity("Amsterdam", 4.9041,  52.3676, 90_000.0);
+        return instance("eight_city_deadlines",
+            List.of(start, brussels_, london_, amsterdam_,
+                    berlin(), zurich(), rome(), madrid()), start);
+    }
+
+    /**
      * eight_city — 8 Western European cities, no deadlines.
      * 7! = 5 040 permutations. Good for measuring heuristic gap.
      */
@@ -145,6 +176,30 @@ public final class TestInstanceLibrary {
         AirCity start = paris();
         return instance("ten_city",
             List.of(start, london(), brussels(), amsterdam(), berlin(),
+                    zurich(), rome(), madrid(), vienna(), prague()), start);
+    }
+
+    /**
+     * ten_city_deadlines — 10 cities, 2 with interacting deadlines.
+     *
+     * London has a deadline of 40 000s. The nearest-neighbour ordering
+     * visits Brussels then Amsterdam before London, arriving at London at
+     * ~47 681s and missing its deadline. The slack-based solvers visit
+     * Brussels then London first (arriving at ~35 069s), satisfying the
+     * deadline. BruteForce confirms the optimal valid route.
+     *
+     * From Paris (direct travel times at 16.67 m/s):
+     *   Brussels: 15 835s direct. Deadline = 22 000s.
+     *   London:   20 609s direct. Deadline = 40 000s — missed by NN
+     *             (Paris→Brussels→Amsterdam→London = 47 681s) but met by
+     *             slack solvers (Paris→Brussels→London = 35 069s).
+     */
+    public static TestInstance<AirCity> tenCityDeadlines() {
+        AirCity start     = paris();
+        AirCity brussels_ = new AirCity("Brussels", 4.3517,  50.8503, 22_000.0);
+        AirCity london_   = new AirCity("London",  -0.1278,  51.5074, 40_000.0);
+        return instance("ten_city_deadlines",
+            List.of(start, brussels_, london_, amsterdam(), berlin(),
                     zurich(), rome(), madrid(), vienna(), prague()), start);
     }
 

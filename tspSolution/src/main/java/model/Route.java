@@ -155,6 +155,9 @@ public final class Route<T extends City> {
         return path.isEmpty() ? null : path.get(path.size() - 1);
     }
 
+    /** Returns the diagnostic log entry, or an empty string if none was set. */
+    public String getDebugLog()           { return debugLog; }
+
     /**
      * Overwrites the diagnostic log entry (used by solvers to annotate routes).
      * Prefer {@link #invalidate(String)} for error messages.

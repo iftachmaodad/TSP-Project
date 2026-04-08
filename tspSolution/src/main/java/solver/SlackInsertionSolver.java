@@ -19,8 +19,8 @@ import java.util.List;
  *       from the start within its deadline.</li>
  *   <li><strong>Insert urgent cities</strong> in tightest-slack order
  *       (smallest {@code deadline − directTravelTime}), each at the cheapest
- *       feasible position. Returns INVALID immediately if any urgent city has
- *       no feasible insertion.</li>
+ *       feasible position. If any urgent city has no feasible insertion, returns
+ *       the partial route built so far, marked INVALID.</li>
  *   <li><strong>Insert flexible cities</strong> greedily at the cheapest
  *       feasible position.</li>
  * </ol>
@@ -88,10 +88,10 @@ public final class SlackInsertionSolver<T extends City> implements Solver<T> {
             Insertion<T> ins =
                     SolverUtils.bestFeasibleInsertion(routeOrder, matrix, u);
             if (ins == null) {
-                Route<T> r = new Route<>(startCity);
-                r.invalidate("No feasible insertion for urgent city '"
+                Route<T> partial = RouteEvaluator.evaluate(routeOrder, matrix);
+                partial.invalidate("No feasible insertion for urgent city '"
                         + u.getID() + "'.");
-                return r;
+                return partial;
             }
             routeOrder.add(ins.index(), ins.city());
         }

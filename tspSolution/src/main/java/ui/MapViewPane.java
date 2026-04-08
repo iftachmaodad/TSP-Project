@@ -56,8 +56,9 @@ public final class MapViewPane extends StackPane {
 
     // --- Data ---
     private List<City>  cities    = new ArrayList<>();
-    private List<City>  route     = null;
-    private City        startCity = null;
+    private List<City>  route      = null;
+    private boolean     routeValid = true;
+    private City        startCity  = null;
     private boolean     showLabels = true;
 
     // --- Overlay markers ---
@@ -210,7 +211,15 @@ public final class MapViewPane extends StackPane {
         redraw();
     }
 
-    public void setRoute(List<City> path)  { this.route = path; redraw(); }
+    public void setRoute(List<City> path, boolean valid) {
+        this.route      = path;
+        this.routeValid = valid;
+        redraw();
+    }
+
+    /** Convenience overload — assumes valid route (used when clearing with null). */
+    public void setRoute(List<City> path) { setRoute(path, true); }
+
     public void setStartCity(City s)       { this.startCity = s; redraw(); }
 
     public void setPendingMarker(double lon, double lat) {
@@ -488,6 +497,10 @@ public final class MapViewPane extends StackPane {
     private void drawRoute(GraphicsContext g, double vw, double vh) {
         if (route == null || route.size() < 2) return;
 
+        Color routeColor = routeValid
+                ? Color.rgb(255, 235, 59, 0.98)
+                : Color.rgb(220, 50,  50, 0.98);
+
         double px = Double.NaN, py = Double.NaN;
         g.setLineWidth(5.0);
         g.setStroke(Color.rgb(0, 0, 0, 0.85));
@@ -499,7 +512,7 @@ public final class MapViewPane extends StackPane {
 
         px = Double.NaN; py = Double.NaN;
         g.setLineWidth(2.8);
-        g.setStroke(Color.rgb(255, 235, 59, 0.98));
+        g.setStroke(routeColor);
         for (City c : route) {
             double[] p = cityToScreen(c, vw, vh, px);
             if (!Double.isNaN(px)) {

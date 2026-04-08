@@ -24,7 +24,7 @@ Two transport modes are supported:
 | `BruteForceSolver` | O(n!) | **Exact optimal** — refuses n > 10 non-start cities |
 | `SlackInsertion2OptSolver` | O(n² × passes) | Best heuristic — multi-start construction + full local search |
 | `SlackInsertionSolver` | O(n²) | Fast single-pass construction baseline, no local search |
-| `NearestNeighborSolver` | O(n²) | Greedy baseline |
+| `NearestNeighborSolver` | O(n²) | Greedy baseline — visits nearest city at each step with no deadline-aware ordering |
 
 **Slack-based insertion:** deadline cities are sorted by `slack = deadline − directTravelTime(start → city)` and inserted tightest-first before flexible cities, preserving feasibility throughout construction.
 
@@ -34,6 +34,8 @@ Two transport modes are supported:
 - **Or-opt** — relocates chains of 2 or 3 consecutive cities. Finds improvements that relocate and 2-opt both miss. O(n²) per pass.
 
 All three operators use first-improvement strategy and run interleaved until no pass yields further improvement or the pass limit is reached.
+
+**Invalid routes:** all solvers return a non-null route regardless of feasibility — callers check `Route.isValid()`. When no valid route exists, the best partial route found during construction is returned marked INVALID, preserving the path for diagnostics. The one exception is physical infeasibility detected by the fast-fail (a city whose direct travel time already exceeds its deadline) — in that case only the start city is in the path since no construction was attempted.
 
 ---
 
@@ -128,7 +130,7 @@ mvn exec:java -Dexec.mainClass="tools.FetchPlacesData"     # refresh places.json
 | ⏰ Cyan ring | City with a deadline |
 | ● White/grey | Regular city |
 
-The solved route is drawn as a yellow arrow line after solving.
+The solved route is drawn as a yellow arrow line after solving. Invalid routes are drawn in red.
 
 ---
 
@@ -174,6 +176,10 @@ Both A→B and B→A keys are stored after a single fetch. Loaded into a `Concur
 
 **Two solvers, clearly separated roles.** `SlackInsertionSolver` is a pure construction heuristic with no local search — it exists as a fast baseline that shows what insertion alone achieves. `SlackInsertion2OptSolver` adds multi-start search (3 deterministic orderings + 25 random shuffles) and full local search (relocate + 2-opt + or-opt), making the quality difference between the two meaningful and measurable in the benchmark.
 
+**`NearestNeighborSolver` is a pure greedy baseline.** It visits every city in nearest-distance order with no deadline checking during selection. When a deadline is missed, `Route.addStep` marks the route INVALID at that exact step, preserving all cities visited up to the failure for diagnostic display. This design intentionally shows the limitation of greedy ordering versus slack-based insertion.
+
+**Invalid routes carry a partial path for diagnostics.** Solvers always return a non-null route. When construction fails, the best partial route built so far is returned marked INVALID rather than discarding it. On the map this is drawn in red; in the route detail dialog, cities with missed deadlines are highlighted. The exception is physical infeasibility detected before construction begins — in that case only the start city is in the path.
+
 **Singleton `PlaceSearchService`.** The bundled and cached place lists are static. The `INSTANCE` field is declared after the `static {}` initializer block so `places.json` is fully loaded before the singleton is exposed.
 
 **Two-phase pin loading.** Bundled pins refresh automatically on every viewport change (instant, no network). The "Load More Pins" button is the only path to Overpass — manual, with a 5-second cooldown and a 10-call session limit shown as a usage label.
@@ -182,9 +188,15 @@ Both A→B and B→A keys are stored after a single fetch. Loaded into a `Concur
 
 ## Benchmark tab
 
-The Benchmark tab runs all four solvers against any of the 8 named test instances (trivial through twenty-city) or against city sets sent from the Solver tab via the "Send to Benchmark" button.
+The Benchmark tab runs all four solvers against any of the 10 named test instances or against city sets sent from the Solver tab via the "Send to Benchmark" button.
+
+**Built-in instances** include no-deadline instances for measuring optimality gap (trivial through twenty-city) and deadline instances specifically designed to show where solver strategies differ — `eight_city_deadlines` and `ten_city_deadlines` are constructed so that `NearestNeighborSolver` fails while the slack-based solvers succeed, demonstrating the value of deadline-aware ordering.
 
 Session instances appear in a dedicated card list in the left panel (not the instance dropdown) showing name, city count, and a preview of city IDs. Clicking a card selects it; the Remove button deletes only that instance.
+
+Results are displayed in definition order (BruteForce → 2-Opt → Slack Insertion → Nearest Neighbour) regardless of which threads finish first. Each row includes:
+- Clicking a row loads that solver's route on the map (yellow = valid, red = invalid).
+- The **View** button opens a city-by-city itinerary dialog showing arrival times, deadlines, and late arrivals highlighted in red. The dialog header states why the route is invalid — either a physically impossible deadline detected before construction began, or a specific deadline missed during route construction. Disabled for BruteForce on instances with n > 10.
 
 Results include an **optimality gap** column: the percentage above the brute-force optimal distance. This is only available when BruteForce also ran on the same instance (n ≤ 10).
 

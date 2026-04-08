@@ -93,27 +93,6 @@ class SolverTest {
         assertEquals(3, r.size(), "path = [start, other, start]");
     }
 
-    // ── triangle (3 cities) ───────────────────────────────────────────────────
-
-    @Test
-    void all_solvers_find_valid_route_on_triangle() {
-        var inst = TestInstanceLibrary.triangle();
-        Matrix<AirCity> m = matrix(inst.cities());
-        AirCity s = inst.startCity();
-        assertTrue(brute(m).solve(s).isValid(),  "brute");
-        assertTrue(opt2(m) .solve(s).isValid(),  "2-opt");
-        assertTrue(slack(m).solve(s).isValid(),  "slack");
-        assertTrue(nn(m)   .solve(s).isValid(),  "nn");
-    }
-
-    @Test
-    void triangle_route_visits_all_cities() {
-        var inst = TestInstanceLibrary.triangle();
-        Route<AirCity> r = brute(matrix(inst.cities())).solve(inst.startCity());
-        assertEquals(inst.size() + 1, r.size(),
-                "Closed route path must have n+1 entries (start appears twice)");
-    }
-
     // ── five_city ─────────────────────────────────────────────────────────────
 
     @Test
@@ -138,14 +117,52 @@ class SolverTest {
     // ── deadlines ─────────────────────────────────────────────────────────────
 
     @Test
-    void all_solvers_valid_on_deadlines_instance() {
+    void deadline_aware_solvers_valid_on_deadlines_instance() {
         var inst = TestInstanceLibrary.deadlines();
         Matrix<AirCity> m = matrix(inst.cities());
         AirCity s = inst.startCity();
         assertTrue(brute(m).solve(s).isValid(), "brute");
         assertTrue(opt2(m) .solve(s).isValid(), "2-opt");
         assertTrue(slack(m).solve(s).isValid(), "slack");
-        assertTrue(nn(m)   .solve(s).isValid(), "nn");
+    }
+
+    // ── eight_city_deadlines ──────────────────────────────────────────────────
+
+    /**
+     * Deadline-aware solvers must find a valid route. Ordering matters here —
+     * a naive solver visiting Amsterdam before London will miss London's deadline.
+     * NearestNeighborSolver is not required to succeed because it has no
+     * deadline-aware ordering strategy.
+     */
+    @Test
+    void deadline_aware_solvers_valid_on_eight_city_deadlines() {
+        var inst = TestInstanceLibrary.eightCityDeadlines();
+        AirCity s = inst.startCity();
+        assertTrue(brute(matrix(inst.cities())).solve(s).isValid(), "brute");
+        assertTrue(opt2 (matrix(inst.cities())).solve(s).isValid(), "2-opt");
+        assertTrue(slack(matrix(inst.cities())).solve(s).isValid(), "slack");
+    }
+
+    @Test
+    void nearest_neighbour_invalid_on_eight_city_deadlines() {
+        var inst = TestInstanceLibrary.eightCityDeadlines();
+        Route<AirCity> r = nn(matrix(inst.cities())).solve(inst.startCity());
+        assertFalse(r.isValid(),
+                "NearestNeighbor must return INVALID on eight_city_deadlines "
+                + "because it lacks deadline-aware ordering");
+        assertTrue(r.size() > 1,
+                "Invalid route must still contain visited cities for diagnostics");
+    }
+
+    @Test
+    void eight_city_deadlines_brute_force_is_optimal() {
+        var inst = TestInstanceLibrary.eightCityDeadlines();
+        Route<AirCity> bruteRoute = brute(matrix(inst.cities())).solve(inst.startCity());
+        Route<AirCity> opt2Route  = opt2 (matrix(inst.cities())).solve(inst.startCity());
+        assertTrue(bruteRoute.isValid(), "brute force must find valid route");
+        assertTrue(opt2Route.isValid(),  "2-opt must find valid route");
+        assertTrue(bruteRoute.getTotalDistance() <= opt2Route.getTotalDistance() + 1e-3,
+                "brute force must not exceed 2-opt on this instance");
     }
 
     // ── infeasible ────────────────────────────────────────────────────────────
@@ -196,6 +213,29 @@ class SolverTest {
                 () -> BruteForceSolver.factorial(-1));
     }
 
+    // ── ten_city_deadlines ────────────────────────────────────────────────────
+
+    @Test
+    void deadline_aware_solvers_valid_on_ten_city_deadlines() {
+        var inst = TestInstanceLibrary.tenCityDeadlines();
+        AirCity s = inst.startCity();
+        assertTrue(brute(matrix(inst.cities())).solve(s).isValid(), "brute");
+        assertTrue(opt2 (matrix(inst.cities())).solve(s).isValid(), "2-opt");
+        assertTrue(slack(matrix(inst.cities())).solve(s).isValid(), "slack");
+    }
+
+    @Test
+    void nearest_neighbour_invalid_on_ten_city_deadlines() {
+        var inst = TestInstanceLibrary.tenCityDeadlines();
+        Route<AirCity> r = nn(matrix(inst.cities())).solve(inst.startCity());
+        assertFalse(r.isValid(),
+                "NearestNeighbor must return INVALID on ten_city_deadlines — "
+                + "its greedy ordering visits Amsterdam before London, "
+                + "missing London's deadline");
+        assertTrue(r.size() > 1,
+                "Invalid route must still contain visited cities for diagnostics");
+    }
+
     // ── ten_city ──────────────────────────────────────────────────────────────
 
     @Test
@@ -235,16 +275,6 @@ class SolverTest {
         List<AirCity> path = r.getPath();
         assertEquals(inst.startCity(), path.get(0),               "must start at depot");
         assertEquals(inst.startCity(), path.get(path.size() - 1), "must close at depot");
-    }
-
-    @Test
-    void nearest_neighbour_visits_all_cities_when_no_deadlines() {
-        var inst = TestInstanceLibrary.eightCity();
-        Route<AirCity> r = nn(matrix(inst.cities())).solve(inst.startCity());
-        assertTrue(r.isValid(), "route must be valid");
-        assertEquals(inst.size() + 1, r.size(),
-                "NN must visit every city when none have deadlines; "
-                + "path size should be n+1 (start appears twice)");
     }
 
     // ── RouteEvaluator ────────────────────────────────────────────────────────

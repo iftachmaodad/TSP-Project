@@ -12,17 +12,22 @@ import java.util.List;
  *
  * <h3>Algorithm</h3>
  * Starting from the depot, repeatedly travel to the nearest unvisited city
- * whose deadline (if any) can still be met given the elapsed time. When no
- * feasible move remains the route closes back to the depot.
+ * by distance, without any deadline-aware ordering. All cities are visited
+ * regardless of deadlines; {@link model.Route#addStep} detects any deadline
+ * violation and marks the route INVALID at that point, preserving the full
+ * path for diagnostic display.
  *
  * <h3>Properties</h3>
  * <ul>
  *   <li>Deterministic — no randomness.</li>
  *   <li>O(n²) time, O(n) space.</li>
  *   <li>Does not guarantee optimality; typically 20–25 % above optimal on
- *       random Euclidean instances.</li>
- *   <li>May skip cities with tight deadlines when they are not nearest at the
- *       time of selection, but the returned route is always marked accordingly.</li>
+ *       random Euclidean instances without deadlines.</li>
+ *   <li>Has no deadline-aware ordering strategy — selects the nearest city
+ *       regardless of urgency. On instances where deadline ordering matters,
+ *       it frequently produces INVALID routes even when a valid ordering
+ *       exists. Use {@link SlackInsertion2OptSolver} or
+ *       {@link SlackInsertionSolver} for deadline-constrained instances.</li>
  * </ul>
  *
  * @param <T> the concrete city subtype
@@ -75,20 +80,13 @@ public final class NearestNeighborSolver<T extends City> implements Solver<T> {
         List<T> routeOrder = new ArrayList<>();
         routeOrder.add(startCity);
 
-        T      current = startCity;
-        double elapsed = 0.0;
+        T current = startCity;
 
         while (!unvisited.isEmpty()) {
             T      nearest     = null;
             double nearestDist = Double.POSITIVE_INFINITY;
 
             for (T candidate : unvisited) {
-                double arrivalTime =
-                        elapsed + SolverUtils.safeTime(matrix, current, candidate);
-                if (candidate.hasDeadline()
-                        && arrivalTime > candidate.getDeadline()) {
-                    continue; // would miss deadline — skip
-                }
                 double dist = SolverUtils.safeDistance(matrix, current, candidate);
                 if (dist < nearestDist) {
                     nearestDist = dist;
@@ -96,9 +94,6 @@ public final class NearestNeighborSolver<T extends City> implements Solver<T> {
                 }
             }
 
-            if (nearest == null) break; // no feasible neighbour — close early
-
-            elapsed += SolverUtils.safeTime(matrix, current, nearest);
             routeOrder.add(nearest);
             unvisited.remove(nearest);
             current = nearest;
@@ -107,18 +102,9 @@ public final class NearestNeighborSolver<T extends City> implements Solver<T> {
         routeOrder.add(startCity); // close the tour
 
         Route<T> result = RouteEvaluator.evaluate(routeOrder, matrix);
-
-        int skipped = unvisited.size();
-        if (result.isValid()) {
-            result.setDebugLog(skipped == 0
-                    ? "Valid route completed (nearest-neighbour)."
-                    : "Valid route found; " + skipped
-                    + " city/cities skipped due to tight deadlines.");
-        } else {
-            result.setDebugLog("Invalid route (nearest-neighbour)."
-                    + (skipped > 0 ? " " + skipped + " city/cities were skipped." : ""));
-        }
-
+        result.setDebugLog(result.isValid()
+                ? "Valid route completed (nearest-neighbour)."
+                : "Invalid route — deadline(s) missed (nearest-neighbour).");
         return result;
     }
 }

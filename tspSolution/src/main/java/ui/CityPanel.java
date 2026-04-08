@@ -18,8 +18,11 @@ import domain.CityRegistry;
  * <h3>Responsibilities</h3>
  * <ul>
  *   <li>Mode (city type) selection — AirCity or GroundCity.</li>
- *   <li>City name and optional deadline input (deadline stored in seconds
- *       internally; the UI presents Minutes / Hours / Days for convenience).</li>
+ *   <li>City name and optional deadline input. The deadline is entered as a
+ *       combination of days, hours, minutes, and seconds; it is stored
+ *       internally in seconds and displayed in the city list in human-readable
+ *       format (e.g. "2h 30m 0s"). Diagnostic tables show raw seconds for
+ *       easy comparison against arrival times.</li>
  *   <li>Adding cities from a pending map double-click or a clicked overlay pin.</li>
  *   <li>Displaying the city list and managing removal.</li>
  *   <li>Start city selection — the start city is enforced to have no deadline.</li>
@@ -50,11 +53,14 @@ public final class CityPanel {
         new Label("Left-click = select. Drag = pan. Scroll = zoom.");
     private final ListView<City>          cityListView  = new ListView<>();
 
-    // Deadline: number + unit — converts to seconds internally
-    private final TextField              deadlineValue = new TextField();
-    private final ComboBox<DeadlineUnit> deadlineUnit  = new ComboBox<>();
-    private final HBox                   deadlineRow   =
-        new HBox(6, deadlineValue, deadlineUnit);
+    // ══════════════════════════════════════════════════════════
+    // Deadline input — three combined fields (days / hours / minutes)
+    // ══════════════════════════════════════════════════════════
+
+    private final TextField deadlineDays    = new TextField();
+    private final TextField deadlineHours   = new TextField();
+    private final TextField deadlineMins    = new TextField();
+    private final TextField deadlineSecs    = new TextField();
 
     // Shared city list owned by UiController
     private final ObservableList<City> cities;
@@ -73,27 +79,6 @@ public final class CityPanel {
     // ══════════════════════════════════════════════════════════
     // Deadline unit enum
     // ══════════════════════════════════════════════════════════
-
-    /**
-     * Human-readable time units for the deadline input.
-     * Each unit knows how many seconds it equals so the conversion
-     * is a single multiply — nothing else in the codebase changes.
-     */
-    private enum DeadlineUnit {
-        MINUTES("Minutes",   60.0),
-        HOURS  ("Hours",  3_600.0),
-        DAYS   ("Days",  86_400.0);
-
-        final String label;
-        final double toSeconds;
-
-        DeadlineUnit(String label, double toSeconds) {
-            this.label     = label;
-            this.toSeconds = toSeconds;
-        }
-
-        @Override public String toString() { return label; }
-    }
 
     // ══════════════════════════════════════════════════════════
     // Constructor
@@ -200,27 +185,36 @@ public final class CityPanel {
             }
         });
 
-        // Deadline row: number field + unit dropdown
-        deadlineValue.setPromptText("No deadline");
-        deadlineValue.setPrefWidth(120);
-        deadlineUnit.getItems().setAll(DeadlineUnit.values());
-        deadlineUnit.getSelectionModel().select(DeadlineUnit.HOURS); // default: hours
-        HBox.setHgrow(deadlineValue, Priority.ALWAYS);
-
         Button addBtn    = new Button("\uD83D\uDCCD Add City");
         Button removeBtn = new Button("\uD83D\uDDD1 Remove Selected");
         Button clearBtn  = new Button("\uD83E\uDDF9 Clear All");
 
+        deadlineDays .setPromptText("d");
+        deadlineHours.setPromptText("h");
+        deadlineMins .setPromptText("m");
+        deadlineSecs .setPromptText("s");
+        deadlineDays .setPrefWidth(44);
+        deadlineHours.setPrefWidth(44);
+        deadlineMins .setPrefWidth(44);
+        deadlineSecs .setPrefWidth(44);
+
+        HBox deadlineRow = new HBox(4,
+                deadlineDays,  new Label("d"),
+                deadlineHours, new Label("h"),
+                deadlineMins,  new Label("m"),
+                deadlineSecs,  new Label("s"));
+        deadlineRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+
         cityListView.setItems(cities);
 
-        // Show deadline cities as "⏰ CityName [7200 s]" and plain "CityName" otherwise.
+        // Show deadline cities as "⏰ CityName  [2d 3h 30m]" and plain "CityName" otherwise.
         cityListView.setCellFactory(lv -> new ListCell<>() {
             @Override protected void updateItem(City item, boolean empty) {
                 super.updateItem(item, empty);
                 if (empty || item == null) { setText(null); return; }
                 if (item.hasDeadline()) {
                     setText("⏰ " + item.getID()
-                            + "  [" + String.format("%.0f", item.getDeadline()) + " s]");
+                            + "  [" + formatDeadline(item.getDeadline()) + "]");
                 } else {
                     setText(item.getID());
                 }
@@ -328,7 +322,7 @@ public final class CityPanel {
                   "The first city you add becomes the start city.\n" +
                   "Start cities cannot have deadlines — the deadline will be ignored.");
             deadlineSecs = null;
-            deadlineValue.clear();
+            clearDeadlineFields();
         }
 
         // Also block deadline if this city matches the current start city.
@@ -340,7 +334,7 @@ public final class CityPanel {
                 alert("Deadline on start city",
                       "The start city cannot have a deadline — it will be ignored.");
                 deadlineSecs = null;
-                deadlineValue.clear();
+                clearDeadlineFields();
             }
         }
 
@@ -369,36 +363,70 @@ public final class CityPanel {
         refreshStartBox();
         clearPending();
         nameField.clear();
-        deadlineValue.clear();
+        clearDeadlineFields();
 
         if (onCityListChanged != null) onCityListChanged.run();
     }
 
     /**
-     * Reads the deadline value field and unit dropdown and returns
-     * the deadline in seconds, or null if the field is blank or invalid.
+     * Reads the four deadline fields (days / hours / minutes / seconds) and
+     * returns the total deadline in seconds, or {@code null} if all fields are
+     * blank or the combined total is zero or negative.
      *
+     * Any combination of fields may be filled; blank fields are treated as zero.
      * Examples:
-     *   "2"  + Hours   → 7 200.0 s
-     *   "30" + Minutes → 1 800.0 s
-     *   "1"  + Days    → 86 400.0 s
-     *   ""             → null (no deadline)
+     *   days=1, hours=2, mins=30, secs=0  → 95 400.0 s
+     *   days=0, hours=0, mins=0,  secs=90 → 90.0 s
+     *   all blank                          → null (no deadline)
      */
     private Double parseDeadlineSeconds() {
-        String text = deadlineValue.getText();
-        if (text == null || text.isBlank()) return null;
+        double days  = parseField(deadlineDays);
+        double hours = parseField(deadlineHours);
+        double mins  = parseField(deadlineMins);
+        double secs  = parseField(deadlineSecs);
+        double total = days * 86_400.0 + hours * 3_600.0 + mins * 60.0 + secs;
+        return total > 0 ? total : null;
+    }
 
+    private static double parseField(TextField field) {
+        String text = field.getText();
+        if (text == null || text.isBlank()) return 0.0;
         try {
-            double amount = Double.parseDouble(text.trim());
-            if (amount <= 0) return null;
-
-            DeadlineUnit unit = deadlineUnit.getValue();
-            if (unit == null) unit = DeadlineUnit.HOURS;
-
-            return amount * unit.toSeconds;
+            double v = Double.parseDouble(text.trim());
+            return v > 0 ? v : 0.0;
         } catch (NumberFormatException e) {
-            return null;
+            return 0.0;
         }
+    }
+
+    /** Clears all four deadline input fields. */
+    private void clearDeadlineFields() {
+        deadlineDays .clear();
+        deadlineHours.clear();
+        deadlineMins .clear();
+        deadlineSecs .clear();
+    }
+
+    /**
+     * Formats a deadline in seconds into a compact human-readable string for
+     * display in the city list. Diagnostic tables use raw seconds so arrival
+     * times and deadlines can be compared directly as numbers.
+     *
+     * Examples: 95 400s → "1d 2h 30m 0s", 7 200s → "2h 0m 0s", 90s → "1m 30s", 45s → "45s".
+     */
+    static String formatDeadline(double totalSeconds) {
+        long secs  = (long) totalSeconds;
+        long days  = secs / 86_400;
+        long hours = (secs % 86_400) / 3_600;
+        long mins  = (secs % 3_600)  / 60;
+        long sec   = secs % 60;
+
+        StringBuilder sb = new StringBuilder();
+        if (days  > 0) sb.append(days).append("d ");
+        if (hours > 0 || days > 0) sb.append(hours).append("h ");
+        if (mins  > 0 || hours > 0 || days > 0) sb.append(mins).append("m ");
+        sb.append(sec).append("s");
+        return sb.toString().trim();
     }
 
     private boolean isAirMode() { return AirCity.class.equals(modeBox.getValue()); }

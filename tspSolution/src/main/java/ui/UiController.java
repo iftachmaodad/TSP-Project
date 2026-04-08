@@ -215,7 +215,8 @@ public final class UiController {
             "  \u23F0 Cyan ring  = city with deadline\n" +
             "  \u25CF  White/grey = regular added city\n\n" +
             "Overlay pins (red teardrop) = available places to add\n\n" +
-            "Route drawn as a yellow arrow line after solving."
+            "Route drawn as a yellow arrow line after solving.\n" +
+            "Invalid routes are drawn in red."
         ).showAndWait());
 
         CheckBox labelsToggle = new CheckBox("Show place labels");
@@ -399,7 +400,7 @@ public final class UiController {
         solverPanel.onRouteReady = route -> {
             mapPane.setCities(new ArrayList<>(cities));
             mapPane.setStartCity(cityPanel.startBox.getValue());
-            mapPane.setRoute(new ArrayList<>(route.getPath()));
+            mapPane.setRoute(new ArrayList<>(route.getPath()), route.isValid());
             showRouteReport(route);
         };
 
@@ -603,7 +604,7 @@ public final class UiController {
         colTime.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().timeS()));
         colTime.setPrefWidth(88);
 
-        TableColumn<RouteRow, String> colDead = new TableColumn<>("Deadline");
+        TableColumn<RouteRow, String> colDead = new TableColumn<>("Deadline (s)");
         colDead.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().deadline()));
         colDead.setPrefWidth(78);
 
@@ -663,7 +664,7 @@ public final class UiController {
             String distStr = i == 0 ? "start"
                           : legDist >= 0 ? String.format("%.0f", legDist) : "\u2014";
             String dead   = c.hasDeadline()
-                          ? String.format("%.0f s", c.getDeadline()) : "\u2014";
+                          ? String.format("%.0f", c.getDeadline()) : "\u2014";
             String note   = "";
             if (c.hasDeadline() && arrival >= 0)
                 note = arrival > c.getDeadline() ? "LATE" : "ok";

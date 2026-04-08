@@ -371,6 +371,7 @@ public final class BenchmarkPane {
         table.getColumns().add(col("Time (ms)",    r -> r.timeMs));
         table.getColumns().add(col("Valid",        r -> r.valid));
         table.getColumns().add(col("Gap vs opt",   r -> r.gap));
+        table.getColumns().add(viewButtonColumn());
 
         table.setRowFactory(tv -> new TableRow<>() {
             @Override protected void updateItem(BenchRow item, boolean empty) {
@@ -382,12 +383,47 @@ public final class BenchmarkPane {
             }
         });
 
+        // Clicking a row loads its route on the map. The detail dialog opens
+        // only via the "View" button in each row.
         table.getSelectionModel().selectedItemProperty().addListener((obs, old, sel) -> {
             if (sel == null || currentInstance == null) return;
+            if (sel.refused) return;
             Route<AirCity> route = latestRoutes.get(sel.solver);
             if (route == null) return;
             loadRouteOnMap(route, currentInstance);
         });
+    }
+
+    /**
+     * Builds a table column containing a "View" button per row that opens the
+     * route detail dialog. Disabled for refused rows (no route available).
+     */
+    private TableColumn<BenchRow, Void> viewButtonColumn() {
+        TableColumn<BenchRow, Void> col = new TableColumn<>("Detail");
+        col.setMinWidth(58);
+        col.setMaxWidth(58);
+        col.setSortable(false);
+        col.setCellFactory(tc -> new javafx.scene.control.TableCell<>() {
+            private final Button btn = new Button("View");
+            {
+                btn.setStyle("-fx-font-size: 10; -fx-padding: 2 6 2 6;");
+                btn.setOnAction(e -> {
+                    int idx = getIndex();
+                    BenchRow row = getTableView().getItems().get(idx);
+                    if (row == null || row.refused || row.route == null) return;
+                    getTableView().getSelectionModel().select(idx);
+                    showRouteDetail(row.solver, row.route);
+                });
+            }
+            @Override protected void updateItem(Void v, boolean empty) {
+                super.updateItem(v, empty);
+                if (empty) { setGraphic(null); return; }
+                BenchRow row = getTableView().getItems().get(getIndex());
+                btn.setDisable(row == null || row.refused || row.route == null);
+                setGraphic(btn);
+            }
+        });
+        return col;
     }
 
     private TableColumn<BenchRow, String> col(String header,
@@ -477,6 +513,7 @@ public final class BenchmarkPane {
 
         int[] done = {0};
         int   total = selected.size();
+        Map<String, BenchRow> collected = new LinkedHashMap<>();
 
         for (String solverName : selected) {
             Task<BenchRow> task = buildTask(solverName, currentInstance);
@@ -485,35 +522,37 @@ public final class BenchmarkPane {
                 BenchRow row = task.getValue();
                 Platform.runLater(() -> {
                     if (row.route != null) latestRoutes.put(row.solver, row.route);
-
                     if ("BruteForce".equals(row.solver) && "YES".equals(row.valid)
                             && row.rawDist >= 0) {
                         optimalDist = row.rawDist;
-                        recomputeGaps();
                     }
-                    rows.add(row.withGap(
-                            formatGap(row.rawDist, optimalDist, "YES".equals(row.valid))));
+                    collected.put(row.solver, row);
                     done[0]++;
                     statusLabel.setText(
                             "Running\u2026 (" + done[0] + " / " + total + " done)");
                     if (done[0] == total) {
-                        recomputeGaps();
+                        for (String name : selected) {
+                            BenchRow r = collected.get(name);
+                            if (r != null)
+                                rows.add(r.withGap(formatGap(
+                                        r.rawDist, optimalDist, "YES".equals(r.valid))));
+                        }
                         setRunning(false);
                         statusLabel.setText("Done. Click a row to see its route on the map.");
-                        for (BenchRow r : rows) {
-                            if ("YES".equals(r.valid)) {
-                                table.getSelectionModel().select(r);
-                                break;
-                            }
-                        }
                     }
                 });
             });
 
             task.setOnFailed(ev -> Platform.runLater(() -> {
+                collected.put(solverName, BenchRow.error(solverName));
                 done[0]++;
-                rows.add(BenchRow.error(solverName));
                 if (done[0] == total) {
+                    for (String name : selected) {
+                        BenchRow r = collected.get(name);
+                        if (r != null)
+                            rows.add(r.withGap(formatGap(
+                                    r.rawDist, optimalDist, "YES".equals(r.valid))));
+                    }
                     setRunning(false);
                     statusLabel.setText("Done (some solvers failed \u2014 see table).");
                 }
@@ -564,6 +603,98 @@ public final class BenchmarkPane {
     }
 
     // ══════════════════════════════════════════════════════════
+    // Route detail dialog
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * Shows a non-blocking dialog with the full city-by-city itinerary for the
+     * selected solver route. Invalid routes are shown with red header rows so
+     * the user can see which cities caused deadline violations.
+     *
+     * Not shown for refused rows (BruteForce on n > 10) — those have no route.
+     */
+    private void showRouteDetail(String solverName, Route<AirCity> route) {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle(solverName + " — Route Detail");
+        String status = route.isValid() ? "✅ Valid route" : "❌ Invalid route";
+        String reason = route.getDebugLog();
+        dialog.setHeaderText(reason.isBlank() ? status : status + "\n" + reason);
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+
+        // Apply the app icon to the dialog window.
+        javafx.stage.Stage stage = (javafx.stage.Stage) dialog.getDialogPane().getScene().getWindow();
+        try {
+            var icon = getClass().getResourceAsStream("/images/tsp-icon-300.png");
+            if (icon != null) stage.getIcons().add(new javafx.scene.image.Image(icon));
+        } catch (Exception ignored) {}
+
+        TableView<String[]> t = new TableView<>();
+        t.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        t.setPrefWidth(560);
+        t.setPrefHeight(340);
+
+        javafx.scene.control.TableColumn<String[], String> colStep = new javafx.scene.control.TableColumn<>("#");
+        colStep.setCellValueFactory(d -> new SimpleStringProperty(d.getValue()[0]));
+        colStep.setMaxWidth(36); colStep.setMinWidth(36);
+
+        javafx.scene.control.TableColumn<String[], String> colCity = new javafx.scene.control.TableColumn<>("City");
+        colCity.setCellValueFactory(d -> new SimpleStringProperty(d.getValue()[1]));
+        colCity.setMinWidth(90);
+
+        javafx.scene.control.TableColumn<String[], String> colArr = new javafx.scene.control.TableColumn<>("Arrival (s)");
+        colArr.setCellValueFactory(d -> new SimpleStringProperty(d.getValue()[2]));
+
+        javafx.scene.control.TableColumn<String[], String> colDead = new javafx.scene.control.TableColumn<>("Deadline (s)");
+        colDead.setCellValueFactory(d -> new SimpleStringProperty(d.getValue()[3]));
+
+        javafx.scene.control.TableColumn<String[], String> colNote = new javafx.scene.control.TableColumn<>("Note");
+        colNote.setCellValueFactory(d -> new SimpleStringProperty(d.getValue()[4]));
+
+        t.getColumns().add(colStep);
+        t.getColumns().add(colCity);
+        t.getColumns().add(colArr);
+        t.getColumns().add(colDead);
+        t.getColumns().add(colNote);
+        for (var c : t.getColumns()) c.setSortable(false);
+
+        t.setRowFactory(tv -> new javafx.scene.control.TableRow<>() {
+            @Override protected void updateItem(String[] row, boolean empty) {
+                super.updateItem(row, empty);
+                if (empty || row == null) { setStyle(""); return; }
+                if ("LATE".equals(row[4]))    setStyle("-fx-background-color: #ffcccc;");
+                else if ("ok".equals(row[4])) setStyle("-fx-background-color: #e8f5e9;");
+                else                          setStyle("");
+            }
+        });
+
+        javafx.collections.ObservableList<String[]> rows =
+                javafx.collections.FXCollections.observableArrayList();
+
+        var path  = route.getPath();
+        var times = route.getArrivalTimes();
+
+        for (int i = 0; i < path.size(); i++) {
+            AirCity c      = path.get(i);
+            double arrival = i < times.size() ? times.get(i) : Double.NaN;
+            String arrStr  = Double.isNaN(arrival) ? "—" : String.format("%.0f", arrival);
+            String deadStr = c.hasDeadline()
+                    ? String.format("%.0f", c.getDeadline()) : "—";
+            String note    = "";
+            if (c.hasDeadline() && !Double.isNaN(arrival))
+                note = arrival > c.getDeadline() ? "LATE" : "ok";
+            rows.add(new String[]{ String.valueOf(i + 1), c.getID(), arrStr, deadStr, note });
+        }
+
+        rows.add(new String[]{ "—", "TOTAL",
+                String.format("%.0f m", route.getTotalDistance()),
+                "—", "" });
+
+        t.setItems(rows);
+        dialog.getDialogPane().setContent(t);
+        dialog.show();
+    }
+
+    // ══════════════════════════════════════════════════════════
     // Map helpers
     // ══════════════════════════════════════════════════════════
 
@@ -577,7 +708,7 @@ public final class BenchmarkPane {
     private void loadRouteOnMap(Route<AirCity> route, TestInstance<AirCity> inst) {
         map.setCities(new ArrayList<>(inst.cities()));
         map.setStartCity(inst.startCity());
-        map.setRoute(new ArrayList<>(route.getPath()));
+        map.setRoute(new ArrayList<>(route.getPath()), route.isValid());
     }
 
     // ══════════════════════════════════════════════════════════
@@ -590,13 +721,6 @@ public final class BenchmarkPane {
         instanceBox.setDisable(running);
         sessionList.setDisable(running);
         solverBoxes.values().forEach(cb -> cb.setDisable(running));
-    }
-
-    private void recomputeGaps() {
-        ObservableList<BenchRow> updated = FXCollections.observableArrayList();
-        for (BenchRow r : rows)
-            updated.add(r.withGap(formatGap(r.rawDist, optimalDist, "YES".equals(r.valid))));
-        rows.setAll(updated);
     }
 
     private ListCell<TestInstance<AirCity>> instanceCell() {
